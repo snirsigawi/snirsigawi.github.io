@@ -26,6 +26,7 @@ export default function ViewStudentPage() {
   const [id, setId] = useState<string | null>(null);
   const [student, setStudent] = useState<StudentDetail | null>(null);
   const [missing, setMissing] = useState(false);
+  const [errMsg, setErrMsg] = useState<string | null>(null);
 
   useEffect(() => {
     const sid = new URLSearchParams(window.location.search).get("id");
@@ -39,13 +40,21 @@ export default function ViewStudentPage() {
         if (!s) setMissing(true);
         else setStudent(s);
       })
-      .catch(() => setMissing(true));
+      .catch((e: unknown) => {
+        setErrMsg(e instanceof Error ? e.message : String(e));
+        setMissing(true);
+      });
   }, []);
 
   if (missing || !id) {
     return (
       <div className="space-y-4">
         <p className="text-sm text-muted-foreground">תלמיד לא נמצא.</p>
+        {errMsg && (
+          <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700 dark:bg-red-950 dark:text-red-300">
+            {errMsg}
+          </p>
+        )}
         <Link href="/students/" className="text-sm text-brand hover:underline">
           ← חזרה לרשימה
         </Link>

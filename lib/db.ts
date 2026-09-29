@@ -188,38 +188,66 @@ export async function countStudents(status: string): Promise<number> {
 }
 
 export async function getStudentDetail(id: string): Promise<StudentDetail | null> {
-  const { data, error } = await supabase
+  // Fetch the student row first — if this fails, nothing else matters.
+  const { data: studentRow, error: studentErr } = await supabase
     .from("students")
-    .select(
-      "*, skill_levels(*, skill_tags(*)), special_dates(*), lessons(*)",
-    )
+    .select("*")
     .eq("id", id)
-    .order("created_at", { referencedTable: "special_dates", ascending: true })
-    .order("starts_at", { referencedTable: "lessons", ascending: false })
     .maybeSingle();
-  if (error) throw new Error(error.message);
-  if (!data) return null;
+  if (studentErr) throw new Error(studentErr.message);
+  if (!studentRow) return null;
 
-  const row = data as Record<string, unknown>;
-  const lessons = ((row.lessons as Record<string, unknown>[] | null) ?? []).map(
-    (l) => mapLesson(l),
-  );
+  const row = studentRow as Record<string, unknown>;
+
+  // Fetch related data in parallel — each is independent.
+  const [skillLevels, specialDates, lessons] = await Promise.all([
+    fetchSkillLevels(id),
+    fetchSpecialDates(id),
+    fetchLessons(id),
+  ]);
+
   return {
     ...mapStudent(row),
-    skillLevels: ((row.skill_levels as SkillLevelRow[] | null) ?? []).map((sl) =>
-      mapLevel(sl),
-    ),
-    specialDates: ((row.special_dates as SpecialDateRow[] | null) ?? []).map(
-      (sd) => ({
-        id: sd.id,
-        studentId: sd.student_id,
-        date: sd.date,
-        label: sd.label,
-      }),
-    ),
+    skillLevels,
+    specialDates,
     lessons,
     lessonsCount: lessons.length,
   };
+}
+
+async function fetchSkillLevels(studentId: string): Promise<SkillLevel[]> {
+  const { data, error } = await supabase
+    .from("skill_levels")
+    .select("*, skill_tags(*)")
+    .eq("student_id", studentId);
+  if (error) throw new Error(error.message);
+  const rows = (data ?? []) as SkillLevelRow[];
+  return rows.map((sl) => mapLevel(sl));
+}
+
+async function fetchSpecialDates(studentId: string) {
+  const { data, error } = await supabase
+    .from("special_dates")
+    .select("*")
+    .eq("student_id", studentId)
+    .order("date", { ascending: true });
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((sd: SpecialDateRow) => ({
+    id: sd.id,
+    studentId: sd.student_id,
+    date: sd.date,
+    label: sd.label,
+  }));
+}
+
+async function fetchLessons(studentId: string) {
+  const { data, error } = await supabase
+    .from("lessons")
+    .select("*")
+    .eq("student_id", studentId)
+    .order("starts_at", { ascending: false });
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((l: Record<string, unknown>) => mapLesson(l));
 }
 
 async function writeSkillLevels(studentId: string, levels: SkillLevelInput[]) {
