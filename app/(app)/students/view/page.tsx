@@ -14,6 +14,14 @@ function formatDate(d: string): string {
   }).format(new Date(`${d}T00:00:00Z`));
 }
 
+function formatDateNoYear(d: string): string {
+  return new Intl.DateTimeFormat("he-IL", {
+    month: "long",
+    day: "numeric",
+    timeZone: "UTC",
+  }).format(new Date(`${d}T00:00:00Z`));
+}
+
 export default function ViewStudentPage() {
   const [id, setId] = useState<string | null>(null);
   const [student, setStudent] = useState<StudentDetail | null>(null);
@@ -107,7 +115,7 @@ export default function ViewStudentPage() {
             </h3>
             <p className="mt-1">
               <span dir="ltr" style={{ unicodeBidi: "isolate" }}>
-                {formatDate(student.birthday)}
+                {formatDateNoYear(student.birthday)}
               </span>
             </p>
           </div>
@@ -182,7 +190,7 @@ export default function ViewStudentPage() {
                   style={{ unicodeBidi: "isolate" }}
                   className="text-muted-foreground"
                 >
-                  {formatDate(sd.date)}
+                  {formatDateNoYear(sd.date)}
                 </span>
               </div>
             ))}

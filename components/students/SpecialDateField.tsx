@@ -10,7 +10,12 @@ export function SpecialDateField({
   initialDates: SpecialDateValue[];
 }) {
   const [rows, setRows] = useState<SpecialDateValue[]>(
-    initialDates.length > 0 ? initialDates : [{ date: "", label: "" }],
+    initialDates.length > 0
+      ? initialDates.map((d) => ({
+          date: d.date ? d.date.slice(5) : "",
+          label: d.label,
+        }))
+      : [{ date: "", label: "" }],
   );
 
   function update(i: number, field: keyof SpecialDateValue, value: string) {
@@ -42,7 +47,10 @@ export function SpecialDateField({
             </label>
             <input
               id={`sd-date-${i}`}
-              type="date"
+              type="text"
+              inputMode="numeric"
+              pattern="\d{2}-\d{2}"
+              placeholder="MM-DD"
               name="specialDate.date"
               value={r.date}
               onChange={(e) => update(i, "date", e.target.value)}

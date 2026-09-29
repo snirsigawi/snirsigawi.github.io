@@ -31,10 +31,22 @@ function parseSpecialDates(formData: FormData) {
     if (typeof date !== "string" || typeof label !== "string") continue;
     const d = date.trim();
     const l = label.trim();
-    if (!d || !l || Number.isNaN(Date.parse(d))) continue;
-    out.push({ date: d, label: l });
+    if (!d || !l) continue;
+    const md = toMonthDay(d);
+    if (!md) continue;
+    out.push({ date: md, label: l });
   }
   return out;
+}
+
+/** Convert MM-DD to 2000-MM-DD for storage (year is irrelevant). */
+function toMonthDay(raw: string): string | null {
+  const d = raw.trim();
+  // Already full date? Strip the year.
+  if (/^\d{4}-\d{2}-\d{2}$/.test(d)) return `2000-${d.slice(5)}`;
+  // MM-DD format.
+  if (/^\d{2}-\d{2}$/.test(d)) return `2000-${d}`;
+  return null;
 }
 
 /** Parse a submitted student form into a StudentInput (client-side). */
@@ -42,7 +54,7 @@ export function parseStudentForm(formData: FormData): StudentInput {
   const get = (key: string) => (formData.get(key) as string | null)?.trim() ?? "";
   const ageRaw = get("age");
   const ageRange = get("ageRange");
-  const birthday = get("birthday");
+  const birthdayRaw = get("birthday");
 
   return {
     name: get("name"),
@@ -56,7 +68,7 @@ export function parseStudentForm(formData: FormData): StudentInput {
     lessonsLocation: get("lessonsLocation") || null,
     whyLearning: get("whyLearning") || null,
     whatFor: get("whatFor") || null,
-    birthday: birthday && !Number.isNaN(Date.parse(birthday)) ? birthday : null,
+    birthday: birthdayRaw ? toMonthDay(birthdayRaw) : null,
     skillLevels: parseSkillLevels(formData),
     specialDates: parseSpecialDates(formData),
   };

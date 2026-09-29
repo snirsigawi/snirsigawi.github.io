@@ -186,8 +186,13 @@ export function StudentForm({
             <input
               id="birthday"
               name="birthday"
-              type="date"
-              defaultValue={initial?.birthday ?? ""}
+              type="text"
+              inputMode="numeric"
+              pattern="\d{2}-\d{2}"
+              placeholder="MM-DD"
+              defaultValue={
+                initial?.birthday ? initial.birthday.slice(5) : ""
+              }
               className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 outline-none focus:border-brand"
             />
           </div>
