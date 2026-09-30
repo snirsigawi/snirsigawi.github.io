@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import {
-  connectGoogleCalendar,
+  startGoogleConnect,
+  handleConnectRedirect,
   disconnectGoogleCalendar,
   isGoogleConnected,
   listUpcomingEvents,
@@ -15,7 +16,6 @@ export default function CalendarSettingsPage() {
   const [connected, setConnected] = useState(false);
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
 
   async function refreshEvents() {
     try {
@@ -26,23 +26,37 @@ export default function CalendarSettingsPage() {
   }
 
   useEffect(() => {
+    // Redirect back from Google consent? Consume the token from the fragment.
+    const result = handleConnectRedirect();
+    if (result) {
+      // Strip the OAuth fragment so it doesn't linger in the address bar/history.
+      window.history.replaceState(
+        null,
+        "",
+        window.location.pathname + window.location.search,
+      );
+      if (result.ok) {
+        setConnected(true);
+        void refreshEvents();
+      } else {
+        setError(result.error);
+      }
+      return;
+    }
+
+    // Normal visit: restore state from a previously stored token.
     if (isGoogleConnected()) {
       setConnected(true);
       void refreshEvents();
     }
   }, []);
 
-  async function connect() {
-    setError(null);
-    setBusy(true);
+  function connect() {
     try {
-      await connectGoogleCalendar();
-      setConnected(true);
-      await refreshEvents();
+      // Full-page navigation to Google; returns here after consent.
+      startGoogleConnect();
     } catch (e) {
       setError(e instanceof Error ? e.message : "החיבור נכשל");
-    } finally {
-      setBusy(false);
     }
   }
 
@@ -76,11 +90,10 @@ export default function CalendarSettingsPage() {
             <p className="text-sm">יומן Google אינו מחובר.</p>
             <button
               type="button"
-              disabled={busy}
               onClick={connect}
-              className="mt-4 rounded-lg bg-brand px-4 py-2 font-heading text-sm font-medium text-brand-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
+              className="mt-4 rounded-lg bg-brand px-4 py-2 font-heading text-sm font-medium text-brand-foreground transition-opacity hover:opacity-90"
             >
-              {busy ? "מחבר…" : "חיבור יומן Google"}
+              חיבור יומן Google
             </button>
           </>
         ) : (

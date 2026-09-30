@@ -1,61 +1,96 @@
 "use client";
 
 /**
- * Google Calendar — direct browser OAuth (Google Identity Services, token flow).
- * Access token is kept in localStorage; no server-side proxy exists in the
- * static GitHub Pages build. Calendar API calls go directly from the browser
- * (the VPN is always on when using the portal).
+ * Google Calendar — OAuth 2.0 implicit flow via full-page redirect.
+ *
+ * Why not the GIS popup: Google Identity Services relays the token from the
+ * consent popup back to the opener page using a third-party iframe/postMessage
+ * handshake. Firefox (storage partitioning / tracking protection) and some
+ * embedded/popup-blocked environments silently swallow that relay — the popup
+ * closes after the `gsi/transform` page but no callback ever fires.
+ *
+ * A top-level redirect to a registered redirect URI is immune to all of that:
+ * Google returns the access token in the URL fragment of this same page.
  */
 
 const SCOPE = "https://www.googleapis.com/auth/calendar.events.readonly";
+const AUTH_ENDPOINT = "https://accounts.google.com/o/oauth2/v2/auth";
 const STORE_KEY = "hebro.google.token";
+const STATE_KEY = "hebro.google.state";
 
 type StoredToken = { accessToken: string; expiresAt: number };
-
-/* ---- minimal GIS typings (avoid depending on @types/google.accounts) ---- */
-
-type TokenResponse = {
-  access_token?: string;
-  expires_in?: number;
-  error?: string;
-};
-
-type TokenClient = {
-  requestAccessToken: (options?: { prompt?: string }) => void;
-};
-
-type GoogleApi = {
-  accounts: {
-    oauth2: {
-      initTokenClient: (config: {
-        client_id: string;
-        scope: string;
-        callback: (response: TokenResponse) => void;
-        error_callback?: (error: { type?: string; message?: string }) => void;
-      }) => TokenClient;
-    };
-  };
-};
-
-declare global {
-  interface Window {
-    google?: GoogleApi;
-  }
-}
 
 /** Error indicating the token is missing/expired/revoked — UI should prompt connect. */
 export class GoogleAuthError extends Error {}
 
-function loadGis(): Promise<void> {
-  return new Promise((resolve, reject) => {
-    if (window.google?.accounts?.oauth2) return resolve();
-    const script = document.createElement("script");
-    script.src = "https://accounts.google.com/gsi/client";
-    script.async = true;
-    script.onload = () => resolve();
-    script.onerror = () => reject(new Error("טעינת Google Identity Services נכשלה (בדקו חיבור/VPN)"));
-    document.head.appendChild(script);
-  });
+/** The calendar settings page is its own redirect target (trailingSlash → path ends with "/"). */
+function currentRedirectUri(): string {
+  const { origin, pathname } = window.location;
+  return origin + (pathname.endsWith("/") ? pathname : `${pathname}/`);
+}
+
+/** Leave the app and show Google's consent screen. Google redirects back here. */
+export function startGoogleConnect(): void {
+  const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+  if (!clientId) throw new Error("NEXT_PUBLIC_GOOGLE_CLIENT_ID isn't configured");
+
+  const stateBytes = new Uint8Array(16);
+  crypto.getRandomValues(stateBytes);
+  const state = Array.from(stateBytes, (b) => b.toString(16).padStart(2, "0")).join("");
+  sessionStorage.setItem(STATE_KEY, state);
+
+  const url = new URL(AUTH_ENDPOINT);
+  url.searchParams.set("client_id", clientId);
+  url.searchParams.set("redirect_uri", currentRedirectUri());
+  url.searchParams.set("response_type", "token");
+  url.searchParams.set("scope", SCOPE);
+  url.searchParams.set("include_granted_scopes", "true");
+  url.searchParams.set("state", state);
+  url.searchParams.set("prompt", "consent");
+
+  window.location.assign(url.toString());
+}
+
+export type ConnectResult = { ok: true } | { ok: false; error: string };
+
+/**
+ * If the page was loaded as the redirect target (token/error in the fragment),
+ * consume it, persist the token, and return the outcome. Returns null when this
+ * is a normal page load without an OAuth response.
+ */
+export function handleConnectRedirect(): ConnectResult | null {
+  const hash = window.location.hash;
+  if (!hash || hash.length <= 1) return null;
+
+  const params = new URLSearchParams(hash.slice(1));
+  const savedState = sessionStorage.getItem(STATE_KEY);
+  sessionStorage.removeItem(STATE_KEY);
+
+  const oauthError = params.get("error");
+  if (oauthError) {
+    const messages: Record<string, string> = {
+      access_denied: "הגישה ליומן Google סורבה.",
+      invalid_scope: "היקף ההרשאות המבוקש אינו תקין.",
+    };
+    return { ok: false, error: messages[oauthError] ?? `שגיאת Google: ${oauthError}` };
+  }
+
+  const accessToken = params.get("access_token");
+  const state = params.get("state");
+  if (!accessToken) {
+    return { ok: false, error: "לא התקבל טוקן גישה מ-Google." };
+  }
+  if (!savedState || savedState !== state) {
+    return { ok: false, error: "בדיקת האבטחה מול Google נכשלה (state mismatch). נסו שוב." };
+  }
+
+  const expiresIn = Number(params.get("expires_in") ?? 3600);
+  const stored: StoredToken = {
+    accessToken,
+    expiresAt: Date.now() + (Number.isFinite(expiresIn) ? expiresIn : 3600) * 1000,
+  };
+  localStorage.setItem(STORE_KEY, JSON.stringify(stored));
+  return { ok: true };
 }
 
 function readToken(): StoredToken | null {
@@ -70,37 +105,6 @@ function readToken(): StoredToken | null {
 export function isGoogleConnected(): boolean {
   const t = readToken();
   return t !== null && t.expiresAt > Date.now() + 60 * 1000;
-}
-
-/** Open the Google consent popup and persist the access token. */
-export async function connectGoogleCalendar(): Promise<void> {
-  const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
-  if (!clientId) throw new Error("NEXT_PUBLIC_GOOGLE_CLIENT_ID isn't configured");
-  await loadGis();
-
-  await new Promise<void>((resolve, reject) => {
-    const client = window.google!.accounts.oauth2.initTokenClient({
-      client_id: clientId,
-      scope: SCOPE,
-      callback: (response) => {
-        if (response.error || !response.access_token) {
-          reject(new Error(response.error ?? "no access token"));
-          return;
-        }
-        const expiresIn = response.expires_in ?? 3600;
-        localStorage.setItem(
-          STORE_KEY,
-          JSON.stringify({
-            accessToken: response.access_token,
-            expiresAt: Date.now() + expiresIn * 1000,
-          } satisfies StoredToken),
-        );
-        resolve();
-      },
-      error_callback: (error) => reject(new Error(error.message ?? error.type ?? "OAuth error")),
-    });
-    client.requestAccessToken();
-  });
 }
 
 export function disconnectGoogleCalendar(): void {

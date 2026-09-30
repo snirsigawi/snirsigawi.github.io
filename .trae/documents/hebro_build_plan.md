@@ -79,9 +79,10 @@ Tables, snake_case: `students`, `skill_levels`, `skill_tags`, `special_dates`, `
 
 ## Google Calendar
 
-* `connectGoogleCalendar()` loads GIS, requests an access token (`calendar.events.readonly`), stores `{ accessToken, expiresAt }` in `localStorage` (`hebro.google.token`).
+* `startGoogleConnect()` navigates to Google's OAuth 2.0 endpoint (`response_type=token`, scope `calendar.events.readonly`); after consent Google redirects back to the calendar settings page with the token in the URL fragment. `handleConnectRedirect()` validates the `state` and stores `{ accessToken, expiresAt }` in `localStorage` (`hebro.google.token`).
+* The redirect (not the GIS popup) is used on purpose: the GIS popup's postMessage relay is silently dropped under Firefox storage partitioning / tracking protection.
 * `listUpcomingEvents(max)` calls the Calendar REST API directly from the browser; on 401/expiry the UI prompts to reconnect.
-* Requires a GCP **OAuth web client** whose *Authorized JavaScript origins* include the Pages URL (and `http://localhost:3000` for dev). Client ID is public: `NEXT_PUBLIC_GOOGLE_CLIENT_ID`.
+* Requires a GCP **OAuth web client** whose *Authorized redirect URIs* include `https://snirsigawi.github.io/settings/calendar/` (and `http://localhost:3000/settings/calendar/` for dev). Client ID is public: `NEXT_PUBLIC_GOOGLE_CLIENT_ID`.
 
 ## Deployment (GitHub Pages via Actions)
 
