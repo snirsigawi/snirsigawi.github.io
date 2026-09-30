@@ -1,7 +1,7 @@
 /* He:Bro — lightweight app-shell service worker (hand-written, no build step).
    Strategy: stale-while-revalidate for same-origin GETs. Cross-origin calls
    (Supabase / Google) are never cached — they pass straight to the network. */
-const VERSION = "hebro-v1";
+const VERSION = "hebro-v2";
 
 self.addEventListener("install", () => {
   self.skipWaiting();
