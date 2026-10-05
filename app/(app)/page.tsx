@@ -14,7 +14,6 @@ import {
 import { getReminders, type ReminderItem } from "@/lib/reminders";
 import {
   listUpcomingEvents,
-  isGoogleConnected,
   type CalendarEvent,
 } from "@/lib/google-calendar";
 import { formatDateHe } from "@/lib/datetime";
@@ -54,11 +53,9 @@ export default function DashboardPage() {
     countStudents("archived").then((c) => active && setArchivedCount(c));
     getReminders().then((r) => active && setReminders(r));
 
-    if (isGoogleConnected()) {
-      listUpcomingEvents(5)
-        .then((e) => active && setGoogleEvents(e))
-        .catch(() => active && setGoogleEvents(null));
-    }
+    listUpcomingEvents(5)
+      .then((e) => active && setGoogleEvents(e))
+      .catch(() => active && setGoogleEvents(null));
 
     return () => {
       active = false;
