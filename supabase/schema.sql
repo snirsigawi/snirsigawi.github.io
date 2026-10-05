@@ -87,6 +87,15 @@ create table holidays (
   name text not null
 );
 
+-- Link a Google Calendar event to a student (so scheduled lessons are
+-- associated with the right student in the app).
+create table calendar_links (
+  google_event_id text primary key,
+  student_id      uuid not null references students(id) on delete cascade,
+  created_at      timestamptz not null default now(),
+  unique (google_event_id)
+);
+
 -- Row Level Security
 alter table students enable row level security;
 alter table skill_levels enable row level security;
@@ -94,6 +103,7 @@ alter table skill_tags enable row level security;
 alter table special_dates enable row level security;
 alter table lessons enable row level security;
 alter table holidays enable row level security;
+alter table calendar_links enable row level security;
 
 -- Policy: full access for any authenticated user (the app has exactly one user).
 create policy "authenticated full access" on students
@@ -107,4 +117,6 @@ create policy "authenticated full access" on special_dates
 create policy "authenticated full access" on lessons
   for all to authenticated using (true) with check (true);
 create policy "authenticated full access" on holidays
+  for all to authenticated using (true) with check (true);
+create policy "authenticated full access" on calendar_links
   for all to authenticated using (true) with check (true);

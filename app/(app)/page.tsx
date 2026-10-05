@@ -7,6 +7,10 @@ import {
   getPreviousLesson,
   getStudentsSummary,
   countStudents,
+  getCalendarLinks,
+  linkCalendarEvent,
+  unlinkCalendarEvent,
+  listStudents,
   type NextLesson,
   type Lesson,
   type StudentSummary,
@@ -35,6 +39,8 @@ export default function DashboardPage() {
   const [archivedCount, setArchivedCount] = useState(0);
   const [reminders, setReminders] = useState<ReminderItem[]>([]);
   const [googleEvents, setGoogleEvents] = useState<CalendarEvent[] | null>(null);
+  const [calendarLinks, setCalendarLinks] = useState<Map<string, string>>(new Map());
+  const [studentList, setStudentList] = useState<{ id: string; name: string }[]>([]);
 
   useEffect(() => {
     let active = true;
@@ -58,10 +64,40 @@ export default function DashboardPage() {
       .then((e) => active && setGoogleEvents(e))
       .catch(() => active && setGoogleEvents(null));
 
+    getCalendarLinks()
+      .then((l) => active && setCalendarLinks(l))
+      .catch(() => active && setCalendarLinks(new Map()));
+
+    listStudents("active")
+      .then((s) => active && setStudentList(s.map((st) => ({ id: st.id, name: st.name }))))
+      .catch(() => active && setStudentList([]));
+
     return () => {
       active = false;
     };
   }, []);
+
+  async function handleLinkEvent(eventId: string, studentId: string) {
+    try {
+      await linkCalendarEvent(eventId, studentId);
+      setCalendarLinks((prev) => new Map(prev).set(eventId, studentId));
+    } catch {
+      // ignore
+    }
+  }
+
+  async function handleUnlinkEvent(eventId: string) {
+    try {
+      await unlinkCalendarEvent(eventId);
+      setCalendarLinks((prev) => {
+        const next = new Map(prev);
+        next.delete(eventId);
+        return next;
+      });
+    } catch {
+      // ignore
+    }
+  }
 
   return (
     <div className="space-y-8">
@@ -166,7 +202,13 @@ export default function DashboardPage() {
         <section>
           <h2 className="font-heading text-lg font-semibold">לוח השיעורים</h2>
           <div className="mt-3">
-            <CalendarSchedule events={googleEvents} />
+            <CalendarSchedule
+              events={googleEvents}
+              links={calendarLinks}
+              students={studentList}
+              onLink={handleLinkEvent}
+              onUnlink={handleUnlinkEvent}
+            />
           </div>
         </section>
       )}

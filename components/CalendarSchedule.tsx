@@ -1,11 +1,11 @@
 "use client";
 
+import { useState } from "react";
 import type { CalendarEvent } from "@/lib/google-calendar";
 
 /**
  * Agenda-style schedule: each day has a bold date block on the side, and events
- * appear as cards with a prominent time pill. Times always visible, day
- * grouping makes the timeline immediately scannable.
+ * appear as cards with a prominent time pill. Events can be linked to a student.
  */
 
 type Day = {
@@ -15,6 +15,17 @@ type Day = {
   month: string;
   relative: string | null;
   events: { event: CalendarEvent; timeLabel: string; allDay: boolean }[];
+};
+
+export type CalendarScheduleProps = {
+  events: CalendarEvent[];
+  /** eventId → studentId */
+  links: Map<string, string>;
+  students: { id: string; name: string }[];
+  onLink: (eventId: string, studentId: string) => void;
+  onUnlink: (eventId: string) => void;
+  /** Show/hide the student linking controls (false for student view). */
+  editable?: boolean;
 };
 
 const dateKeyFmt = new Intl.DateTimeFormat("en-CA", {
@@ -89,16 +100,23 @@ function groupByDay(events: CalendarEvent[]): Day[] {
 
 export default function CalendarSchedule({
   events,
-}: {
-  events: CalendarEvent[];
-}) {
+  links,
+  students,
+  onLink,
+  onUnlink,
+  editable = true,
+}: CalendarScheduleProps) {
   const days = groupByDay(events);
+  const [openPicker, setOpenPicker] = useState<string | null>(null);
 
   if (days.length === 0) {
     return (
       <p className="text-sm text-muted-foreground">אין אירועים קרובים ביומן.</p>
     );
   }
+
+  const studentName = (id: string) =>
+    students.find((s) => s.id === id)?.name ?? "תלמיד";
 
   return (
     <div className="space-y-5">
@@ -124,30 +142,89 @@ export default function CalendarSchedule({
                 {day.relative}
               </span>
             )}
-            {day.events.map(({ event, timeLabel, allDay }) => (
-              <div
-                key={event.id}
-                className="flex items-start gap-3 rounded-xl border border-border bg-background p-3 shadow-sm transition-shadow hover:shadow-md"
-              >
-                {/* Time pill */}
-                <span
-                  dir="ltr"
-                  style={{ unicodeBidi: "isolate" }}
-                  className={`shrink-0 rounded-lg px-2.5 py-1 text-sm font-bold tabular-nums ${
-                    allDay
-                      ? "bg-muted text-muted-foreground"
-                      : "bg-brand/10 text-brand"
-                  }`}
-                >
-                  {timeLabel}
-                </span>
+            {day.events.map(({ event, timeLabel, allDay }) => {
+              const linkedStudentId = links.get(event.id);
+              const isOpen = openPicker === event.id;
 
-                {/* Event title */}
-                <span className="min-w-0 flex-1 pt-1 text-sm font-medium leading-tight">
-                  {event.summary}
-                </span>
-              </div>
-            ))}
+              return (
+                <div
+                  key={event.id}
+                  className="flex items-start gap-3 rounded-xl border border-border bg-background p-3 shadow-sm transition-shadow hover:shadow-md"
+                >
+                  {/* Time pill */}
+                  <span
+                    dir="ltr"
+                    style={{ unicodeBidi: "isolate" }}
+                    className={`shrink-0 rounded-lg px-2.5 py-1 text-sm font-bold tabular-nums ${
+                      allDay
+                        ? "bg-muted text-muted-foreground"
+                        : "bg-brand/10 text-brand"
+                    }`}
+                  >
+                    {timeLabel}
+                  </span>
+
+                  {/* Event title + link */}
+                  <div className="min-w-0 flex-1">
+                    <p className="pt-1 text-sm font-medium leading-tight">
+                      {event.summary}
+                    </p>
+
+                    {editable && (
+                      <div className="mt-2">
+                        {linkedStudentId ? (
+                          <span className="inline-flex items-center gap-1.5 rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800 dark:bg-green-950 dark:text-green-200">
+                            {studentName(linkedStudentId)}
+                            <button
+                              type="button"
+                              onClick={() => onUnlink(event.id)}
+                              className="ml-1 text-green-700 hover:text-green-900 dark:text-green-300 dark:hover:text-green-100"
+                              title="ניתוק תלמיד"
+                            >
+                              ✕
+                            </button>
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setOpenPicker(isOpen ? null : event.id)
+                            }
+                            className="rounded-full border border-dashed border-border px-2.5 py-0.5 text-xs text-muted-foreground transition-colors hover:border-brand hover:text-brand"
+                          >
+                            + שיוך לתלמיד
+                          </button>
+                        )}
+
+                        {isOpen && !linkedStudentId && (
+                          <div className="absolute z-10 mt-1 w-48 rounded-lg border border-border bg-background p-1 shadow-lg">
+                            {students.length === 0 ? (
+                              <p className="px-2 py-1.5 text-xs text-muted-foreground">
+                                אין תלמידים ברשימה
+                              </p>
+                            ) : (
+                              students.map((s) => (
+                                <button
+                                  key={s.id}
+                                  type="button"
+                                  onClick={() => {
+                                    onLink(event.id, s.id);
+                                    setOpenPicker(null);
+                                  }}
+                                  className="block w-full rounded px-2 py-1.5 text-start text-sm hover:bg-muted"
+                                >
+                                  {s.name}
+                                </button>
+                              ))
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </section>
       ))}

@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { getStudentDetail, type StudentDetail } from "@/lib/db";
+import { getStudentDetail, getCalendarLinks, type StudentDetail } from "@/lib/db";
+import { listUpcomingEvents, type CalendarEvent } from "@/lib/google-calendar";
+import CalendarSchedule from "@/components/CalendarSchedule";
 import { StudentActions } from "@/components/students/StudentActions";
 
 function formatDate(d: string): string {
@@ -27,6 +29,7 @@ export default function ViewStudentPage() {
   const [student, setStudent] = useState<StudentDetail | null>(null);
   const [missing, setMissing] = useState(false);
   const [errMsg, setErrMsg] = useState<string | null>(null);
+  const [scheduledEvents, setScheduledEvents] = useState<CalendarEvent[] | null>(null);
 
   useEffect(() => {
     const sid = new URLSearchParams(window.location.search).get("id");
@@ -44,6 +47,14 @@ export default function ViewStudentPage() {
         setErrMsg(e instanceof Error ? e.message : String(e));
         setMissing(true);
       });
+
+    // Load this student's linked Google Calendar events
+    Promise.all([listUpcomingEvents(20), getCalendarLinks()])
+      .then(([events, links]) => {
+        const linked = events.filter((e) => links.get(e.id) === sid);
+        setScheduledEvents(linked);
+      })
+      .catch(() => setScheduledEvents([]));
   }, []);
 
   if (missing || !id) {
@@ -204,6 +215,31 @@ export default function ViewStudentPage() {
               </div>
             ))}
           </div>
+        </section>
+      )}
+
+      {scheduledEvents !== null && (
+        <section>
+          <h2 className="font-heading text-lg font-semibold">שיעורים מתוכננים ביומן</h2>
+          {scheduledEvents.length === 0 ? (
+            <p className="mt-2 text-sm text-muted-foreground">
+              אין שיעורים מתוכננים המשויכים לתלמיד זה.
+              <Link href="/settings/calendar/" className="ms-1 text-brand hover:underline">
+                שרפו שיעורים ביומן →
+              </Link>
+            </p>
+          ) : (
+            <div className="mt-2">
+              <CalendarSchedule
+                events={scheduledEvents}
+                links={new Map()}
+                students={[]}
+                onLink={() => {}}
+                onUnlink={() => {}}
+                editable={false}
+              />
+            </div>
+          )}
         </section>
       )}
 

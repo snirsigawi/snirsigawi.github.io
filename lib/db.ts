@@ -519,3 +519,41 @@ export async function deleteHoliday(id: string): Promise<void> {
   const { error } = await supabase.from("holidays").delete().eq("id", id);
   if (error) throw new Error(error.message);
 }
+
+/* ---------------- Calendar links ---------------- */
+
+export type CalendarLink = { googleEventId: string; studentId: string };
+
+/** All event→student links, keyed by Google event ID. */
+export async function getCalendarLinks(): Promise<Map<string, string>> {
+  const { data, error } = await supabase
+    .from("calendar_links")
+    .select("google_event_id, student_id");
+  if (error) throw new Error(error.message);
+  const map = new Map<string, string>();
+  for (const row of data ?? []) {
+    map.set(row.google_event_id, row.student_id);
+  }
+  return map;
+}
+
+/** Link (or re-link) a Google Calendar event to a student. */
+export async function linkCalendarEvent(
+  googleEventId: string,
+  studentId: string,
+): Promise<void> {
+  const { error } = await supabase.from("calendar_links").upsert(
+    { google_event_id: googleEventId, student_id: studentId },
+    { onConflict: "google_event_id" },
+  );
+  if (error) throw new Error(error.message);
+}
+
+/** Remove the link for a Google Calendar event. */
+export async function unlinkCalendarEvent(googleEventId: string): Promise<void> {
+  const { error } = await supabase
+    .from("calendar_links")
+    .delete()
+    .eq("google_event_id", googleEventId);
+  if (error) throw new Error(error.message);
+}
