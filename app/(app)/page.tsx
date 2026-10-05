@@ -17,6 +17,7 @@ import {
   type CalendarEvent,
 } from "@/lib/google-calendar";
 import { formatDateHe } from "@/lib/datetime";
+import CalendarSchedule from "@/components/CalendarSchedule";
 
 const REMINDER_LABELS: Record<string, string> = {
   uncheckedHomework: "שיעורי בית",
@@ -163,30 +164,10 @@ export default function DashboardPage() {
       {/* Google Calendar events */}
       {googleEvents && (
         <section>
-          <h2 className="font-heading text-lg font-semibold">מהיומן</h2>
-          {googleEvents.length === 0 ? (
-            <p className="mt-3 text-sm text-muted-foreground">אין אירועים קרובים ביומן.</p>
-          ) : (
-            <ul className="mt-3 grid gap-2 sm:grid-cols-2">
-              {googleEvents.map((e) => (
-                <li
-                  key={e.id}
-                  className="rounded-xl border border-border bg-background p-3 text-sm"
-                >
-                  <span className="font-medium">{e.summary}</span>
-                  {e.start && (
-                    <span
-                      dir="ltr"
-                      style={{ unicodeBidi: "isolate" }}
-                      className="ms-2 text-muted-foreground"
-                    >
-                      {formatDateHe(e.start)}
-                    </span>
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
+          <h2 className="font-heading text-lg font-semibold">לוח השיעורים</h2>
+          <div className="mt-3">
+            <CalendarSchedule events={googleEvents} />
+          </div>
         </section>
       )}
 
