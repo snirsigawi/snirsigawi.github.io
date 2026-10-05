@@ -197,25 +197,28 @@ export default function CalendarSchedule({
                         )}
 
                         {isOpen && !linkedStudentId && (
-                          <div className="absolute z-10 mt-1 w-48 rounded-lg border border-border bg-background p-1 shadow-lg">
+                          <div className="mt-2 rounded-lg border border-border bg-muted/30 p-1.5">
                             {students.length === 0 ? (
                               <p className="px-2 py-1.5 text-xs text-muted-foreground">
                                 אין תלמידים ברשימה
                               </p>
                             ) : (
-                              students.map((s) => (
-                                <button
-                                  key={s.id}
-                                  type="button"
-                                  onClick={() => {
-                                    onLink(event.id, s.id);
-                                    setOpenPicker(null);
-                                  }}
-                                  className="block w-full rounded px-2 py-1.5 text-start text-sm hover:bg-muted"
-                                >
-                                  {s.name}
-                                </button>
-                              ))
+                              <ul className="max-h-44 overflow-y-auto">
+                                {students.map((s) => (
+                                  <li key={s.id}>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        onLink(event.id, s.id);
+                                        setOpenPicker(null);
+                                      }}
+                                      className="block w-full rounded px-2 py-1.5 text-start text-sm hover:bg-background"
+                                    >
+                                      {s.name}
+                                    </button>
+                                  </li>
+                                ))}
+                              </ul>
                             )}
                           </div>
                         )}

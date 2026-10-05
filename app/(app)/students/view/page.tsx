@@ -225,7 +225,7 @@ export default function ViewStudentPage() {
             <p className="mt-2 text-sm text-muted-foreground">
               אין שיעורים מתוכננים המשויכים לתלמיד זה.
               <Link href="/settings/calendar/" className="ms-1 text-brand hover:underline">
-                שרפו שיעורים ביומן →
+                שייכו שיעורים ביומן →
               </Link>
             </p>
           ) : (
