@@ -3,16 +3,16 @@
 import type { CalendarEvent } from "@/lib/google-calendar";
 
 /**
- * Day-grouped schedule of calendar events.
- *
- * Events are clustered under readable day headers ("היום" / "מחר" / weekday +
- * date); every row leads with its clock time, so the agenda reads like a real
- * timetable rather than a flat list of dates.
+ * Agenda-style schedule: each day has a bold date block on the side, and events
+ * appear as cards with a prominent time pill. Times always visible, day
+ * grouping makes the timeline immediately scannable.
  */
 
 type Day = {
   key: string;
-  label: string;
+  weekday: string;
+  dayNum: string;
+  month: string;
   relative: string | null;
   events: { event: CalendarEvent; timeLabel: string; allDay: boolean }[];
 };
@@ -27,16 +27,9 @@ const timeFmt = new Intl.DateTimeFormat("he-IL", {
   minute: "2-digit",
   hour12: false,
 });
-
-function dayLabel(d: Date): string {
-  const sameYear = d.getFullYear() === new Date().getFullYear();
-  return new Intl.DateTimeFormat("he-IL", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    ...(sameYear ? {} : { year: "numeric" }),
-  }).format(d);
-}
+const weekdayFmt = new Intl.DateTimeFormat("he-IL", { weekday: "short" });
+const monthFmt = new Intl.DateTimeFormat("he-IL", { month: "short" });
+const dayNumFmt = new Intl.DateTimeFormat("en-CA", { day: "numeric" });
 
 function relativeBadge(key: string): string | null {
   const today = new Date();
@@ -55,13 +48,11 @@ function timeLabelFor(event: CalendarEvent): { label: string; allDay: boolean } 
   if (!event.start) return { label: "", allDay: false };
   const start = new Date(event.start);
 
-  // A date-only start (no time component) is an all-day event.
   if (event.start.length === 10) return { label: "כל היום", allDay: true };
 
   const startLabel = timeFmt.format(start);
   if (event.end && event.end.length > 10) {
     const end = new Date(event.end);
-    // Calendar all-day boundaries ending at 00:00 shouldn't show a trailing time.
     if (!(end.getHours() === 0 && end.getMinutes() === 0)) {
       return { label: `${startLabel}–${timeFmt.format(end)}`, allDay: false };
     }
@@ -81,7 +72,9 @@ function groupByDay(events: CalendarEvent[]): Day[] {
     if (!day) {
       day = {
         key,
-        label: dayLabel(start),
+        weekday: weekdayFmt.format(start),
+        dayNum: dayNumFmt.format(start),
+        month: monthFmt.format(start),
         relative: relativeBadge(key),
         events: [],
       };
@@ -108,47 +101,54 @@ export default function CalendarSchedule({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       {days.map((day) => (
-        <section key={day.key}>
-          {/* Day header */}
-          <div className="flex items-center gap-2">
-            <h3 className="font-heading text-sm font-semibold">{day.label}</h3>
+        <section key={day.key} className="flex gap-4">
+          {/* Date block — the visual anchor for the day */}
+          <div className="flex w-14 shrink-0 flex-col items-center rounded-xl border border-border bg-muted/40 p-2">
+            <span className="font-heading text-2xl font-bold leading-none text-brand">
+              {day.dayNum}
+            </span>
+            <span className="mt-1 text-[11px] text-muted-foreground">
+              {day.month}
+            </span>
+            <span className="mt-0.5 text-[11px] font-medium text-foreground/70">
+              {day.weekday}
+            </span>
+          </div>
+
+          {/* Events */}
+          <div className="min-w-0 flex-1 space-y-2">
             {day.relative && (
-              <span className="rounded-full bg-brand/10 px-2 py-0.5 text-[11px] font-medium text-brand">
+              <span className="inline-block rounded-full bg-brand/10 px-2.5 py-0.5 text-[11px] font-semibold text-brand">
                 {day.relative}
               </span>
             )}
-          </div>
-
-          {/* Event rows */}
-          <ul className="mt-2 overflow-hidden rounded-xl border border-border bg-background">
-            {day.events.map(({ event, timeLabel, allDay }, i) => (
-              <li
+            {day.events.map(({ event, timeLabel, allDay }) => (
+              <div
                 key={event.id}
-                className={`flex items-center gap-3 p-3 ${
-                  i > 0 ? "border-t border-border" : ""
-                }`}
+                className="flex items-start gap-3 rounded-xl border border-border bg-background p-3 shadow-sm transition-shadow hover:shadow-md"
               >
-                {/* Time — the anchor that makes the row scannable */}
+                {/* Time pill */}
                 <span
                   dir="ltr"
                   style={{ unicodeBidi: "isolate" }}
-                  className={`w-[96px] shrink-0 text-sm tabular-nums ${
+                  className={`shrink-0 rounded-lg px-2.5 py-1 text-sm font-bold tabular-nums ${
                     allDay
-                      ? "text-muted-foreground"
-                      : "font-semibold text-foreground"
+                      ? "bg-muted text-muted-foreground"
+                      : "bg-brand/10 text-brand"
                   }`}
                 >
                   {timeLabel}
                 </span>
 
-                <span className="min-w-0 flex-1 truncate text-sm">
+                {/* Event title */}
+                <span className="min-w-0 flex-1 pt-1 text-sm font-medium leading-tight">
                   {event.summary}
                 </span>
-              </li>
+              </div>
             ))}
-          </ul>
+          </div>
         </section>
       ))}
     </div>
