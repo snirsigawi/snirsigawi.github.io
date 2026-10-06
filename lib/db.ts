@@ -557,3 +557,64 @@ export async function unlinkCalendarEvent(googleEventId: string): Promise<void> 
     .eq("google_event_id", googleEventId);
   if (error) throw new Error(error.message);
 }
+
+/** Remove many event links at once. */
+export async function bulkUnlinkCalendarEvents(
+  googleEventIds: string[],
+): Promise<void> {
+  if (googleEventIds.length === 0) return;
+  const { error } = await supabase
+    .from("calendar_links")
+    .delete()
+    .in("google_event_id", googleEventIds);
+  if (error) throw new Error(error.message);
+}
+
+/** Link many events to students in one call. */
+export async function bulkLinkCalendarEvents(
+  entries: { googleEventId: string; studentId: string }[],
+): Promise<void> {
+  if (entries.length === 0) return;
+  const { error } = await supabase.from("calendar_links").upsert(
+    entries.map((e) => ({
+      google_event_id: e.googleEventId,
+      student_id: e.studentId,
+    })),
+    { onConflict: "google_event_id" },
+  );
+  if (error) throw new Error(error.message);
+}
+
+/* ---------------- Recurring series links ---------------- */
+
+/** All series→student links, keyed by recurring event id. */
+export async function getSeriesLinks(): Promise<Map<string, string>> {
+  const { data, error } = await supabase
+    .from("calendar_series_links")
+    .select("recurring_event_id, student_id");
+  if (error) throw new Error(error.message);
+  const map = new Map<string, string>();
+  for (const row of data ?? []) {
+    map.set(row.recurring_event_id, row.student_id);
+  }
+  return map;
+}
+
+export async function linkSeries(
+  recurringEventId: string,
+  studentId: string,
+): Promise<void> {
+  const { error } = await supabase.from("calendar_series_links").upsert(
+    { recurring_event_id: recurringEventId, student_id: studentId },
+    { onConflict: "recurring_event_id" },
+  );
+  if (error) throw new Error(error.message);
+}
+
+export async function unlinkSeries(recurringEventId: string): Promise<void> {
+  const { error } = await supabase
+    .from("calendar_series_links")
+    .delete()
+    .eq("recurring_event_id", recurringEventId);
+  if (error) throw new Error(error.message);
+}

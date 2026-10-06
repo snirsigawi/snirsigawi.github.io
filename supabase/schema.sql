@@ -96,6 +96,14 @@ create table calendar_links (
   unique (google_event_id)
 );
 
+-- Predictive link for a whole recurring series: every future occurrence of
+-- the series belongs to this student (auto-linked as it appears on the calendar).
+create table calendar_series_links (
+  recurring_event_id text primary key,
+  student_id         uuid not null references students(id) on delete cascade,
+  created_at         timestamptz not null default now()
+);
+
 -- Row Level Security
 alter table students enable row level security;
 alter table skill_levels enable row level security;
@@ -104,6 +112,7 @@ alter table special_dates enable row level security;
 alter table lessons enable row level security;
 alter table holidays enable row level security;
 alter table calendar_links enable row level security;
+alter table calendar_series_links enable row level security;
 
 -- Policy: full access for any authenticated user (the app has exactly one user).
 create policy "authenticated full access" on students
@@ -121,3 +130,6 @@ create policy "authenticated full access" on holidays
 create policy "authenticated full access" on calendar_links
   for all to authenticated using (true) with check (true);
 grant all on calendar_links to authenticated;
+create policy "authenticated full access" on calendar_series_links
+  for all to authenticated using (true) with check (true);
+grant all on calendar_series_links to authenticated;

@@ -19,6 +19,8 @@ export type CalendarEvent = {
   summary: string;
   start: string | null;
   end: string | null;
+  /** Base recurring-event id when this is an instance of a recurring series. */
+  recurringEventId: string | null;
 };
 
 /** Upcoming events from the public teaching calendar. */
@@ -50,6 +52,7 @@ export async function listUpcomingEvents(max = 5): Promise<CalendarEvent[]> {
       summary?: string;
       start?: { dateTime?: string; date?: string };
       end?: { dateTime?: string; date?: string };
+      recurringEventId?: string;
     }[];
   };
 
@@ -58,5 +61,18 @@ export async function listUpcomingEvents(max = 5): Promise<CalendarEvent[]> {
     summary: e.summary ?? "(ללא כותרת)",
     start: e.start?.dateTime ?? e.start?.date ?? null,
     end: e.end?.dateTime ?? e.end?.date ?? null,
+    recurringEventId: e.recurringEventId ?? null,
   }));
+}
+
+/**
+ * Future (and current) instances of a recurring series, starting now.
+ * Used when the user asks to "predict" the rest of a student's lessons.
+ */
+export async function listSeriesEvents(
+  recurringEventId: string,
+  max = 50,
+): Promise<CalendarEvent[]> {
+  const all = await listUpcomingEvents(Math.max(max, 10));
+  return all.filter((e) => e.recurringEventId === recurringEventId);
 }

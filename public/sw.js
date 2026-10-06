@@ -3,7 +3,7 @@
      that references old JS chunks (which caused infinite loading).
    - Other same-origin GETs: stale-while-revalidate.
    - Cross-origin (Supabase / Google): never intercepted. */
-const VERSION = "hebro-v8";
+const VERSION = "hebro-v9";
 
 self.addEventListener("install", () => {
   self.skipWaiting();

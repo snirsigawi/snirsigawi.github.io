@@ -22,10 +22,13 @@ export type CalendarScheduleProps = {
   /** eventId → studentId */
   links: Map<string, string>;
   students: { id: string; name: string }[];
-  onLink: (eventId: string, studentId: string) => void;
-  onUnlink: (eventId: string) => void;
+  onLink: (event: CalendarEvent, studentId: string) => void;
+  onUnlink: (event: CalendarEvent) => void;
   /** Show/hide the student linking controls (false for student view). */
   editable?: boolean;
+  /** Show a per-row ✕ to detach the event (used in the student profile). */
+  removable?: boolean;
+  onRemoveEvent?: (event: CalendarEvent) => void;
 };
 
 const dateKeyFmt = new Intl.DateTimeFormat("en-CA", {
@@ -105,6 +108,8 @@ export default function CalendarSchedule({
   onLink,
   onUnlink,
   editable = true,
+  removable = false,
+  onRemoveEvent,
 }: CalendarScheduleProps) {
   const days = groupByDay(events);
   const [openPicker, setOpenPicker] = useState<string | null>(null);
@@ -177,7 +182,7 @@ export default function CalendarSchedule({
                             {studentName(linkedStudentId)}
                             <button
                               type="button"
-                              onClick={() => onUnlink(event.id)}
+                              onClick={() => onUnlink(event)}
                               className="ml-1 text-green-700 hover:text-green-900 dark:text-green-300 dark:hover:text-green-100"
                               title="ניתוק תלמיד"
                             >
@@ -209,7 +214,7 @@ export default function CalendarSchedule({
                                     <button
                                       type="button"
                                       onClick={() => {
-                                        onLink(event.id, s.id);
+                                        onLink(event, s.id);
                                         setOpenPicker(null);
                                       }}
                                       className="block w-full rounded px-2 py-1.5 text-start text-sm hover:bg-background"
@@ -225,6 +230,18 @@ export default function CalendarSchedule({
                       </div>
                     )}
                   </div>
+
+                  {/* Detach from student profile */}
+                  {removable && onRemoveEvent && (
+                    <button
+                      type="button"
+                      onClick={() => onRemoveEvent(event)}
+                      className="shrink-0 self-center rounded-lg px-2 py-1 text-muted-foreground transition-colors hover:bg-red-50 hover:text-red-700 dark:hover:bg-red-950 dark:hover:text-red-300"
+                      title="ניתוק שיעור"
+                    >
+                      ✕
+                    </button>
+                  )}
                 </div>
               );
             })}

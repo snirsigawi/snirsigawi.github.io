@@ -7,10 +7,6 @@ import {
   getPreviousLesson,
   getStudentsSummary,
   countStudents,
-  getCalendarLinks,
-  linkCalendarEvent,
-  unlinkCalendarEvent,
-  listStudents,
   type NextLesson,
   type Lesson,
   type StudentSummary,
@@ -22,6 +18,8 @@ import {
 } from "@/lib/google-calendar";
 import { formatDateHe } from "@/lib/datetime";
 import CalendarSchedule from "@/components/CalendarSchedule";
+import LinkToast from "@/components/LinkToast";
+import { useCalendarLinking } from "@/components/useCalendarLinking";
 
 const REMINDER_LABELS: Record<string, string> = {
   uncheckedHomework: "שיעורי בית",
@@ -39,9 +37,20 @@ export default function DashboardPage() {
   const [archivedCount, setArchivedCount] = useState(0);
   const [reminders, setReminders] = useState<ReminderItem[]>([]);
   const [googleEvents, setGoogleEvents] = useState<CalendarEvent[] | null>(null);
-  const [calendarLinks, setCalendarLinks] = useState<Map<string, string>>(new Map());
-  const [linkingEnabled, setLinkingEnabled] = useState(true);
-  const [studentList, setStudentList] = useState<{ id: string; name: string }[]>([]);
+  const [busy, setBusy] = useState(false);
+
+  const {
+    ready,
+    links,
+    students: studentList,
+    toast,
+    applyPrediction,
+    linkEvent,
+    undoLast,
+    predictFuture,
+    removeEvent,
+    dismissToast,
+  } = useCalendarLinking();
 
   useEffect(() => {
     let active = true;
@@ -62,50 +71,30 @@ export default function DashboardPage() {
     getReminders().then((r) => active && setReminders(r));
 
     listUpcomingEvents(5)
-      .then((e) => active && setGoogleEvents(e))
-      .catch(() => active && setGoogleEvents(null));
-
-    getCalendarLinks()
-      .then((l) => {
-        if (active) setCalendarLinks(l);
+      .then(async (e) => {
+        if (!active) return;
+        setGoogleEvents(e);
+        await applyPrediction(e);
       })
-      .catch(() => {
-        if (active) {
-          setCalendarLinks(new Map());
-          setLinkingEnabled(false);
-        }
-      });
-
-    listStudents("active")
-      .then((s) => active && setStudentList(s.map((st) => ({ id: st.id, name: st.name }))))
-      .catch(() => active && setStudentList([]));
+      .catch(() => active && setGoogleEvents(null));
 
     return () => {
       active = false;
     };
-  }, []);
+  }, [applyPrediction]);
 
-  async function handleLinkEvent(eventId: string, studentId: string) {
+  async function handlePredict() {
+    if (!toast || toast.kind !== "linked") return;
+    setBusy(true);
     try {
-      await linkCalendarEvent(eventId, studentId);
-      setCalendarLinks((prev) => new Map(prev).set(eventId, studentId));
-    } catch {
-      setLinkingEnabled(false);
+      await predictFuture(toast.event, toast.studentId);
+    } finally {
+      setBusy(false);
     }
   }
 
-  async function handleUnlinkEvent(eventId: string) {
-    try {
-      await unlinkCalendarEvent(eventId);
-      setCalendarLinks((prev) => {
-        const next = new Map(prev);
-        next.delete(eventId);
-        return next;
-      });
-    } catch {
-      setLinkingEnabled(false);
-    }
-  }
+  const toastStudentName =
+    toast && studentList.find((s) => s.id === toast.studentId)?.name;
 
   return (
     <div className="space-y-8">
@@ -212,14 +201,25 @@ export default function DashboardPage() {
           <div className="mt-3">
             <CalendarSchedule
               events={googleEvents}
-              links={calendarLinks}
+              links={links}
               students={studentList}
-              onLink={handleLinkEvent}
-              onUnlink={handleUnlinkEvent}
-              editable={linkingEnabled}
+              onLink={linkEvent}
+              onUnlink={removeEvent}
+              editable={ready === true}
             />
           </div>
         </section>
+      )}
+
+      {toast && toastStudentName && (
+        <LinkToast
+          toast={toast}
+          studentName={toastStudentName}
+          busy={busy}
+          onUndo={undoLast}
+          onPredict={handlePredict}
+          onDecline={dismissToast}
+        />
       )}
 
       {/* Students */}

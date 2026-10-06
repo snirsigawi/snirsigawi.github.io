@@ -2,9 +2,11 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { getStudentDetail, getCalendarLinks, type StudentDetail } from "@/lib/db";
+import { getStudentDetail, type StudentDetail } from "@/lib/db";
 import { listUpcomingEvents, type CalendarEvent } from "@/lib/google-calendar";
 import CalendarSchedule from "@/components/CalendarSchedule";
+import LinkToast from "@/components/LinkToast";
+import { useCalendarLinking } from "@/components/useCalendarLinking";
 import { StudentActions } from "@/components/students/StudentActions";
 
 function formatDate(d: string): string {
@@ -29,7 +31,20 @@ export default function ViewStudentPage() {
   const [student, setStudent] = useState<StudentDetail | null>(null);
   const [missing, setMissing] = useState(false);
   const [errMsg, setErrMsg] = useState<string | null>(null);
-  const [scheduledEvents, setScheduledEvents] = useState<CalendarEvent[] | null>(null);
+  const [events, setEvents] = useState<CalendarEvent[] | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const {
+    links,
+    students: studentList,
+    toast,
+    applyPrediction,
+    removeEvent,
+    removeFutureForStudent,
+    undoLast,
+    predictFuture,
+    dismissToast,
+  } = useCalendarLinking();
 
   useEffect(() => {
     const sid = new URLSearchParams(window.location.search).get("id");
@@ -48,14 +63,27 @@ export default function ViewStudentPage() {
         setMissing(true);
       });
 
-    // Load this student's linked Google Calendar events
-    Promise.all([listUpcomingEvents(20), getCalendarLinks()])
-      .then(([events, links]) => {
-        const linked = events.filter((e) => links.get(e.id) === sid);
-        setScheduledEvents(linked);
+    // Upcoming calendar events; series prediction auto-links new occurrences.
+    listUpcomingEvents(40)
+      .then(async (ev) => {
+        setEvents(ev);
+        await applyPrediction(ev);
       })
-      .catch(() => setScheduledEvents([]));
-  }, []);
+      .catch(() => setEvents([]));
+  }, [applyPrediction]);
+
+  async function handlePredict() {
+    if (!toast || toast.kind !== "linked") return;
+    setBusy(true);
+    try {
+      await predictFuture(toast.event, toast.studentId);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const toastStudentName =
+    toast && studentList.find((s) => s.id === toast.studentId)?.name;
 
   if (missing || !id) {
     return (
@@ -218,29 +246,59 @@ export default function ViewStudentPage() {
         </section>
       )}
 
-      {scheduledEvents !== null && (
-        <section>
-          <h2 className="font-heading text-lg font-semibold">שיעורים מתוכננים ביומן</h2>
-          {scheduledEvents.length === 0 ? (
-            <p className="mt-2 text-sm text-muted-foreground">
-              אין שיעורים מתוכננים המשויכים לתלמיד זה.
-              <Link href="/settings/calendar/" className="ms-1 text-brand hover:underline">
-                שייכו שיעורים ביומן →
-              </Link>
-            </p>
-          ) : (
-            <div className="mt-2">
-              <CalendarSchedule
-                events={scheduledEvents}
-                links={new Map()}
-                students={[]}
-                onLink={() => {}}
-                onUnlink={() => {}}
-                editable={false}
-              />
+      {events !== null && (() => {
+        const scheduled = events.filter((e) => links.get(e.id) === id);
+
+        return (
+          <section>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className="font-heading text-lg font-semibold">
+                שיעורים מתוכננים ביומן
+              </h2>
+              {scheduled.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => removeFutureForStudent(id, events)}
+                  className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:border-red-300 hover:bg-red-50 hover:text-red-700 dark:hover:border-red-900 dark:hover:bg-red-950 dark:hover:text-red-300"
+                >
+                  ניתוק כל העתידיים
+                </button>
+              )}
             </div>
-          )}
-        </section>
+            {scheduled.length === 0 ? (
+              <p className="mt-2 text-sm text-muted-foreground">
+                אין שיעורים מתוכננים המשויכים לתלמיד זה.
+                <Link href="/settings/calendar/" className="ms-1 text-brand hover:underline">
+                  שייכו שיעורים ביומן →
+                </Link>
+              </p>
+            ) : (
+              <div className="mt-2">
+                <CalendarSchedule
+                  events={scheduled}
+                  links={links}
+                  students={[]}
+                  onLink={() => {}}
+                  onUnlink={() => {}}
+                  editable={false}
+                  removable
+                  onRemoveEvent={removeEvent}
+                />
+              </div>
+            )}
+          </section>
+        );
+      })()}
+
+      {toast && toastStudentName && (
+        <LinkToast
+          toast={toast}
+          studentName={toastStudentName}
+          busy={busy}
+          onUndo={undoLast}
+          onPredict={handlePredict}
+          onDecline={dismissToast}
+        />
       )}
 
       <section>

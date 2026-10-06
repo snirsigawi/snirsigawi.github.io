@@ -4,74 +4,58 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { listUpcomingEvents, type CalendarEvent } from "@/lib/google-calendar";
 import CalendarSchedule from "@/components/CalendarSchedule";
-import {
-  getCalendarLinks,
-  linkCalendarEvent,
-  unlinkCalendarEvent,
-  listStudents,
-} from "@/lib/db";
+import LinkToast from "@/components/LinkToast";
+import { useCalendarLinking } from "@/components/useCalendarLinking";
 
 export default function CalendarSettingsPage() {
   const [events, setEvents] = useState<CalendarEvent[] | null>(null);
-  const [links, setLinks] = useState<Map<string, string>>(new Map());
-  const [students, setStudents] = useState<{ id: string; name: string }[]>([]);
-  const [linkingEnabled, setLinkingEnabled] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [linkError, setLinkError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const {
+    ready,
+    links,
+    students,
+    toast,
+    applyPrediction,
+    linkEvent,
+    undoLast,
+    predictFuture,
+    removeEvent,
+    dismissToast,
+  } = useCalendarLinking();
 
   useEffect(() => {
-    // Events load independently — a missing links table must never break the
-    // calendar itself.
-    listUpcomingEvents(10)
-      .then(setEvents)
-      .catch((e: unknown) =>
-        setError(e instanceof Error ? e.message : "טעינת היומן נכשלה"),
-      );
-
-    listStudents("active")
-      .then((st) => setStudents(st.map((s) => ({ id: s.id, name: s.name }))))
-      .catch(() => setStudents([]));
-
-    getCalendarLinks()
-      .then(setLinks)
-      .catch(() => {
-        // The calendar_links table hasn't been created yet. The calendar still
-        // works; linking is hidden until the one-time SQL is run.
-        setLinkingEnabled(false);
-        setLinks(new Map());
+    let active = true;
+    listUpcomingEvents(30)
+      .then(async (ev) => {
+        if (!active) return;
+        setEvents(ev);
+        await applyPrediction(ev);
+      })
+      .catch((e: unknown) => {
+        if (active)
+          setError(e instanceof Error ? e.message : "טעינת היומן נכשלה");
       });
-  }, []);
+    return () => {
+      active = false;
+    };
+  }, [applyPrediction]);
 
-  async function handleLink(eventId: string, studentId: string) {
-    setLinkError(null);
+  async function handlePredict() {
+    if (!toast || toast.kind !== "linked") return;
+    setBusy(true);
     try {
-      await linkCalendarEvent(eventId, studentId);
-      setLinks((prev) => new Map(prev).set(eventId, studentId));
+      await predictFuture(toast.event, toast.studentId);
     } catch (e) {
-      setLinkingEnabled(false);
-      setLinkError(
-        e instanceof Error
-          ? `השיוך נכשל: ${e.message}`
-          : "השיוך נכשל — הזינו את הרשאות הגישה ב־Supabase.",
-      );
+      setError(e instanceof Error ? e.message : "החיזוי נכשל");
+    } finally {
+      setBusy(false);
     }
   }
 
-  async function handleUnlink(eventId: string) {
-    try {
-      await unlinkCalendarEvent(eventId);
-      setLinks((prev) => {
-        const next = new Map(prev);
-        next.delete(eventId);
-        return next;
-      });
-    } catch (e) {
-      setLinkingEnabled(false);
-      setLinkError(
-        e instanceof Error ? `הניתוק נכשל: ${e.message}` : "הניתוק נכשל.",
-      );
-    }
-  }
+  const toastStudentName =
+    toast && students.find((s) => s.id === toast.studentId)?.name;
 
   return (
     <div className="space-y-6">
@@ -84,15 +68,17 @@ export default function CalendarSettingsPage() {
         </Link>
         <h1 className="mt-2 font-heading text-2xl font-bold">יומן Google</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          שייכו כל שיעור ביומן לתלמיד המתאים כדי לוודא שהוא מופיע בדף התלמיד.
+          שייכו כל שיעור ביומן לתלמיד המתאים. אחרי השיוך אפשר לחזות גם את כל
+          השיעורים העתידיים.
         </p>
       </div>
 
-      {!linkingEnabled && (
+      {ready === false && (
         <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200">
           <p className="font-semibold">שיוך תלמידים כבוי זמנית</p>
           <p className="mt-1">
-            צריך ליצור פעם אחת את טבלת השיוך ב־Supabase. הריצו את ה־SQL הזה ב־
+            צריך ליצור פעם אחת את טבלאות השיוך ב־Supabase. הריצו את ה־SQL הזה
+            ב־
             <a
               href="https://supabase.com/dashboard"
               target="_blank"
@@ -112,21 +98,25 @@ export default function CalendarSettingsPage() {
   student_id uuid not null references students(id) on delete cascade,
   created_at timestamptz not null default now()
 );
+create table if not exists calendar_series_links (
+  recurring_event_id text primary key,
+  student_id uuid not null references students(id) on delete cascade,
+  created_at timestamptz not null default now()
+);
 alter table calendar_links enable row level security;
+alter table calendar_series_links enable row level security;
 drop policy if exists "authenticated full access" on calendar_links;
+drop policy if exists "authenticated full access" on calendar_series_links;
 create policy "authenticated full access" on calendar_links
   for all to authenticated using (true) with check (true);
+create policy "authenticated full access" on calendar_series_links
+  for all to authenticated using (true) with check (true);
 grant all on calendar_links to authenticated;
+grant all on calendar_series_links to authenticated;
 notify pgrst, 'reload schema';`}
           </pre>
           <p className="mt-2">לאחר ההרצה, רעננו את הדף — הכפתורים יופיעו.</p>
         </div>
-      )}
-
-      {linkError && (
-        <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">
-          {linkError}
-        </p>
       )}
 
       {error && (
@@ -135,7 +125,7 @@ notify pgrst, 'reload schema';`}
         </p>
       )}
 
-      {!error && events === null && (
+      {events === null && !error && (
         <p className="text-sm text-muted-foreground">טוען…</p>
       )}
 
@@ -144,9 +134,20 @@ notify pgrst, 'reload schema';`}
           events={events}
           links={links}
           students={students}
-          onLink={handleLink}
-          onUnlink={handleUnlink}
-          editable={linkingEnabled}
+          onLink={linkEvent}
+          onUnlink={removeEvent}
+          editable={ready === true}
+        />
+      )}
+
+      {toast && toastStudentName && (
+        <LinkToast
+          toast={toast}
+          studentName={toastStudentName}
+          busy={busy}
+          onUndo={undoLast}
+          onPredict={handlePredict}
+          onDecline={dismissToast}
         />
       )}
     </div>
