@@ -17,6 +17,7 @@ export default function CalendarSettingsPage() {
   const [students, setStudents] = useState<{ id: string; name: string }[]>([]);
   const [linkingEnabled, setLinkingEnabled] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [linkError, setLinkError] = useState<string | null>(null);
 
   useEffect(() => {
     // Events load independently — a missing links table must never break the
@@ -42,11 +43,17 @@ export default function CalendarSettingsPage() {
   }, []);
 
   async function handleLink(eventId: string, studentId: string) {
+    setLinkError(null);
     try {
       await linkCalendarEvent(eventId, studentId);
       setLinks((prev) => new Map(prev).set(eventId, studentId));
-    } catch {
+    } catch (e) {
       setLinkingEnabled(false);
+      setLinkError(
+        e instanceof Error
+          ? `השיוך נכשל: ${e.message}`
+          : "השיוך נכשל — הזינו את הרשאות הגישה ב־Supabase.",
+      );
     }
   }
 
@@ -58,8 +65,11 @@ export default function CalendarSettingsPage() {
         next.delete(eventId);
         return next;
       });
-    } catch {
+    } catch (e) {
       setLinkingEnabled(false);
+      setLinkError(
+        e instanceof Error ? `הניתוק נכשל: ${e.message}` : "הניתוק נכשל.",
+      );
     }
   }
 
@@ -97,17 +107,26 @@ export default function CalendarSettingsPage() {
             dir="ltr"
             className="mt-2 overflow-x-auto rounded-lg bg-black/10 p-3 text-xs dark:bg-white/10"
           >
-{`create table calendar_links (
+{`create table if not exists calendar_links (
   google_event_id text primary key,
   student_id uuid not null references students(id) on delete cascade,
   created_at timestamptz not null default now()
 );
 alter table calendar_links enable row level security;
+drop policy if exists "authenticated full access" on calendar_links;
 create policy "authenticated full access" on calendar_links
-  for all to authenticated using (true) with check (true);`}
+  for all to authenticated using (true) with check (true);
+grant all on calendar_links to authenticated;
+notify pgrst, 'reload schema';`}
           </pre>
           <p className="mt-2">לאחר ההרצה, רעננו את הדף — הכפתורים יופיעו.</p>
         </div>
+      )}
+
+      {linkError && (
+        <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">
+          {linkError}
+        </p>
       )}
 
       {error && (

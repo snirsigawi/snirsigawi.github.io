@@ -40,6 +40,7 @@ export default function DashboardPage() {
   const [reminders, setReminders] = useState<ReminderItem[]>([]);
   const [googleEvents, setGoogleEvents] = useState<CalendarEvent[] | null>(null);
   const [calendarLinks, setCalendarLinks] = useState<Map<string, string>>(new Map());
+  const [linkingEnabled, setLinkingEnabled] = useState(true);
   const [studentList, setStudentList] = useState<{ id: string; name: string }[]>([]);
 
   useEffect(() => {
@@ -65,8 +66,15 @@ export default function DashboardPage() {
       .catch(() => active && setGoogleEvents(null));
 
     getCalendarLinks()
-      .then((l) => active && setCalendarLinks(l))
-      .catch(() => active && setCalendarLinks(new Map()));
+      .then((l) => {
+        if (active) setCalendarLinks(l);
+      })
+      .catch(() => {
+        if (active) {
+          setCalendarLinks(new Map());
+          setLinkingEnabled(false);
+        }
+      });
 
     listStudents("active")
       .then((s) => active && setStudentList(s.map((st) => ({ id: st.id, name: st.name }))))
@@ -82,7 +90,7 @@ export default function DashboardPage() {
       await linkCalendarEvent(eventId, studentId);
       setCalendarLinks((prev) => new Map(prev).set(eventId, studentId));
     } catch {
-      // ignore
+      setLinkingEnabled(false);
     }
   }
 
@@ -95,7 +103,7 @@ export default function DashboardPage() {
         return next;
       });
     } catch {
-      // ignore
+      setLinkingEnabled(false);
     }
   }
 
@@ -208,6 +216,7 @@ export default function DashboardPage() {
               students={studentList}
               onLink={handleLinkEvent}
               onUnlink={handleUnlinkEvent}
+              editable={linkingEnabled}
             />
           </div>
         </section>

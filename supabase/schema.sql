@@ -120,3 +120,4 @@ create policy "authenticated full access" on holidays
   for all to authenticated using (true) with check (true);
 create policy "authenticated full access" on calendar_links
   for all to authenticated using (true) with check (true);
+grant all on calendar_links to authenticated;

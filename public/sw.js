@@ -1,7 +1,9 @@
 /* He:Bro — lightweight app-shell service worker (hand-written, no build step).
-   Strategy: stale-while-revalidate for same-origin GETs. Cross-origin calls
-   (Supabase / Google) are never cached — they pass straight to the network. */
-const VERSION = "hebro-v7";
+   - Page navigations: network-first, so deploys never leave a stale HTML shell
+     that references old JS chunks (which caused infinite loading).
+   - Other same-origin GETs: stale-while-revalidate.
+   - Cross-origin (Supabase / Google): never intercepted. */
+const VERSION = "hebro-v8";
 
 self.addEventListener("install", () => {
   self.skipWaiting();
@@ -24,6 +26,22 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
 
+  // Navigations: network-first; fall back to cache only when offline.
+  if (req.mode === "navigate") {
+    event.respondWith(
+      fetch(req)
+        .then((res) => {
+          if (res.ok) {
+            caches.open(VERSION).then((cache) => cache.put(req, res.clone()));
+          }
+          return res;
+        })
+        .catch(async () => (await caches.open(VERSION)).match(req)),
+    );
+    return;
+  }
+
+  // Same-origin static assets: stale-while-revalidate.
   event.respondWith(
     (async () => {
       const cache = await caches.open(VERSION);
