@@ -117,6 +117,30 @@ export default function DashboardPage() {
 
   const shownEvents = expanded ? (expandedEvents ?? googleEvents) : googleEvents;
 
+  // Next lesson: a DB-planned lesson wins; otherwise fall back to the next
+  // Google Calendar event that is linked to a student.
+  const nextLinkedEvent = nextLesson
+    ? null
+    : (googleEvents?.find((e) => links.get(e.id)) ?? null);
+  const nextLinkedStudent = nextLinkedEvent
+    ? studentList.find((s) => s.id === links.get(nextLinkedEvent.id))
+    : undefined;
+  const nextLinkedDateLabel = nextLinkedEvent?.start
+    ? formatDateHe(
+        nextLinkedEvent.start,
+        nextLinkedEvent.start.length === 10
+          ? { weekday: "short", day: "numeric", month: "short", year: "numeric" }
+          : {
+              weekday: "short",
+              day: "numeric",
+              month: "short",
+              hour: "2-digit",
+              minute: "2-digit",
+              hour12: false,
+            },
+      )
+    : "";
+
   const toastStudentName =
     toast && studentList.find((s) => s.id === toast.studentId)?.name;
 
@@ -177,6 +201,36 @@ export default function DashboardPage() {
                     <dd>השלימו את הנושאים שלא כוסו</dd>
                   </div>
                 )}
+            </dl>
+          </div>
+        ) : nextLinkedEvent && nextLinkedStudent ? (
+          <div className="mt-3 rounded-2xl border border-border bg-background p-5">
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <div>
+                <Link
+                  href={`/students/view/?id=${nextLinkedStudent.id}`}
+                  className="font-heading text-lg font-semibold text-brand hover:underline"
+                >
+                  {nextLinkedStudent.name}
+                </Link>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  <span dir="ltr" style={{ unicodeBidi: "isolate" }}>
+                    {nextLinkedDateLabel}
+                  </span>
+                </p>
+              </div>
+              <Link
+                href={`/lessons/new/?id=${nextLinkedStudent.id}`}
+                className="rounded-lg border border-border px-2 py-1.5 text-xs font-medium transition-colors hover:bg-muted"
+              >
+                + שיעור חדש לתלמיד
+              </Link>
+            </div>
+            <dl className="mt-4 space-y-2 text-sm">
+              <div>
+                <dt className="text-muted-foreground">מתוך יומן Google:</dt>
+                <dd>{nextLinkedEvent.summary}</dd>
+              </div>
             </dl>
           </div>
         ) : (
