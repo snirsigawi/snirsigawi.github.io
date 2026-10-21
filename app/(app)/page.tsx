@@ -285,21 +285,12 @@ export default function DashboardPage() {
         <section>
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 className="font-heading text-lg font-semibold">לוח השיעורים</h2>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={toggleExpandSchedule}
-                className="rounded-lg border border-border px-2 py-1.5 text-xs font-medium transition-colors hover:bg-muted"
-              >
-                {expanded ? "כיווץ" : "הרחבה — 3 ימים"}
-              </button>
-              <Link
-                href="/calendar/"
-                className="text-sm text-brand hover:underline"
-              >
-                30 הימים הקרובים ←
-              </Link>
-            </div>
+            <Link
+              href="/calendar/"
+              className="text-sm text-brand hover:underline"
+            >
+              30 הימים הקרובים ←
+            </Link>
           </div>
           <div className="mt-3">
             <CalendarSchedule
@@ -311,6 +302,13 @@ export default function DashboardPage() {
               editable={ready === true}
             />
           </div>
+          <button
+            type="button"
+            onClick={toggleExpandSchedule}
+            className="mt-3 text-sm text-brand hover:underline"
+          >
+            {expanded ? "כיווץ" : "הרחבה — 3 ימים"}
+          </button>
         </section>
       )}
 
