@@ -170,12 +170,20 @@ export default function DashboardPage() {
                   </span>
                 </p>
               </div>
-              <Link
-                href={`/lessons/new/?id=${nextLesson.studentId}`}
-                className="rounded-lg border border-border px-2 py-1.5 text-xs font-medium transition-colors hover:bg-muted"
-              >
-                + שיעור חדש לתלמיד
-              </Link>
+              <div className="flex flex-wrap gap-2">
+                <Link
+                  href={`/lessons/edit/?id=${nextLesson.studentId}&lesson=${nextLesson.id}`}
+                  className="rounded-lg border border-border px-2 py-1.5 text-xs font-medium transition-colors hover:bg-muted"
+                >
+                  עריכה
+                </Link>
+                <Link
+                  href={`/lessons/new/?id=${nextLesson.studentId}`}
+                  className="rounded-lg border border-border px-2 py-1.5 text-xs font-medium transition-colors hover:bg-muted"
+                >
+                  + שיעור חדש לתלמיד
+                </Link>
+              </div>
             </div>
             <dl className="mt-4 space-y-2 text-sm">
               {nextLesson.plannedTopics && (

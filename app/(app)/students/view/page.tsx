@@ -328,11 +328,19 @@ export default function ViewStudentPage() {
                   >
                     {formatDate(l.startsAt.slice(0, 10))}
                   </span>
-                  {l.usedPresentation && (
-                    <span className="rounded-full bg-muted px-2 py-0.5 text-xs">
-                      שקופית אחרונה: {l.lastSlideNo ?? "—"}
-                    </span>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {l.usedPresentation && (
+                      <span className="rounded-full bg-muted px-2 py-0.5 text-xs">
+                        שקופית אחרונה: {l.lastSlideNo ?? "—"}
+                      </span>
+                    )}
+                    <Link
+                      href={`/lessons/edit/?id=${id}&lesson=${l.id}`}
+                      className="rounded-md border border-border px-2 py-0.5 text-xs font-medium transition-colors hover:bg-muted"
+                    >
+                      עריכה
+                    </Link>
+                  </div>
                 </div>
                 {l.coveredTopics && (
                   <p className="mt-1 text-muted-foreground line-clamp-2">{l.coveredTopics}</p>
