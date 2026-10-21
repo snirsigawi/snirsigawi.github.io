@@ -43,6 +43,48 @@ export type LinkToastState =
 /** How long the Undo option stays available after an action. */
 export const LINK_TOAST_MS = 8000;
 
+/** Linked lessons with one title that trigger auto-linking the rest. */
+const AUTO_LINK_MIN = 3;
+
+/**
+ * Once a student has AUTO_LINK_MIN linked events sharing one title, every
+ * remaining visible event with that title is treated as theirs. Mutates
+ * `links` with the additions and returns the new rows to persist.
+ */
+function summaryAutoLinks(
+  events: CalendarEvent[],
+  links: Map<string, string>,
+): { googleEventId: string; studentId: string }[] {
+  // Count linked events per (title, student).
+  const counts = new Map<string, Map<string, number>>();
+  for (const e of events) {
+    const sid = links.get(e.id);
+    if (!sid) continue;
+    let m = counts.get(e.summary);
+    if (!m) {
+      m = new Map();
+      counts.set(e.summary, m);
+    }
+    m.set(sid, (m.get(sid) ?? 0) + 1);
+  }
+
+  const out: { googleEventId: string; studentId: string }[] = [];
+  for (const e of events) {
+    if (links.has(e.id)) continue;
+    const m = counts.get(e.summary);
+    if (!m) continue;
+    let best: { sid: string; n: number } | null = null;
+    for (const [sid, n] of m) {
+      if (n >= AUTO_LINK_MIN && (!best || n > best.n)) best = { sid, n };
+    }
+    if (best) {
+      out.push({ googleEventId: e.id, studentId: best.sid });
+      links.set(e.id, best.sid);
+    }
+  }
+  return out;
+}
+
 export function useCalendarLinking() {
   // null = initial state still loading; true/false = links tables usable.
   const [ready, setReady] = useState<boolean | null>(null);
@@ -57,6 +99,8 @@ export function useCalendarLinking() {
   linksRef.current = links;
   seriesRef.current = seriesLinks;
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** Last event list seen by applyPrediction — basis for title auto-linking. */
+  const eventsRef = useRef<CalendarEvent[]>([]);
 
   const showToast = useCallback((t: LinkToastState) => {
     setToast(t);
@@ -104,26 +148,30 @@ export function useCalendarLinking() {
    */
   const applyPrediction = useCallback(
     async (events: CalendarEvent[]): Promise<Map<string, string>> => {
+      eventsRef.current = events;
       const current = linksRef.current;
       const series = seriesRef.current;
+      const next = new Map(current);
       const toInsert: { googleEventId: string; studentId: string }[] = [];
 
       for (const e of events) {
-        if (current.has(e.id)) continue;
+        if (next.has(e.id)) continue;
         if (e.recurringEventId) {
           const studentId = series.get(e.recurringEventId);
-          if (studentId)
+          if (studentId) {
             toInsert.push({ googleEventId: e.id, studentId });
+            next.set(e.id, studentId);
+          }
         }
       }
+
+      // 3+ linked lessons with one title → the rest of that title is theirs.
+      toInsert.push(...summaryAutoLinks(events, next));
 
       if (toInsert.length === 0) return current;
 
       try {
         await bulkLinkCalendarEvents(toInsert);
-        const next = new Map(current);
-        for (const { googleEventId, studentId } of toInsert)
-          next.set(googleEventId, studentId);
         setLinks(next);
         return next;
       } catch {
@@ -137,7 +185,25 @@ export function useCalendarLinking() {
   const linkEvent = useCallback(
     async (event: CalendarEvent, studentId: string): Promise<void> => {
       await linkCalendarEvent(event.id, studentId);
-      setLinks((prev) => new Map(prev).set(event.id, studentId));
+      const next = new Map(linksRef.current).set(event.id, studentId);
+      setLinks(next);
+
+      // 3rd lesson with this title for the student → auto-link the rest.
+      const extra = summaryAutoLinks(eventsRef.current, next);
+      if (extra.length > 0) {
+        bulkLinkCalendarEvents(extra).catch(() => {});
+        setLinks(new Map(next));
+        showToast({
+          kind: "predicted",
+          studentId,
+          seriesId: "",
+          count: extra.length,
+          eventIds: [event.id, ...extra.map((x) => x.googleEventId)],
+          createdAt: Date.now(),
+        });
+        return;
+      }
+
       showToast({
         kind: "linked",
         event,
@@ -163,12 +229,14 @@ export function useCalendarLinking() {
         });
       } else {
         bulkUnlinkCalendarEvents(current.eventIds).catch(() => {});
-        unlinkSeries(current.seriesId).catch(() => {});
-        setSeriesLinks((prev) => {
-          const next = new Map(prev);
-          next.delete(current.seriesId);
-          return next;
-        });
+        if (current.seriesId) {
+          unlinkSeries(current.seriesId).catch(() => {});
+          setSeriesLinks((prev) => {
+            const next = new Map(prev);
+            next.delete(current.seriesId);
+            return next;
+          });
+        }
         setLinks((prev) => {
           const next = new Map(prev);
           for (const id of current.eventIds) next.delete(id);
