@@ -226,9 +226,17 @@ export default function DashboardPage() {
       <section>
         <div className="flex items-center justify-between">
           <h2 className="font-heading text-lg font-semibold">התלמידים</h2>
-          <Link href="/students/" className="text-sm text-brand hover:underline">
-            כל התלמידים →
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link
+              href="/students/new/"
+              className="rounded-lg border border-border px-2 py-1.5 text-xs font-medium transition-colors hover:bg-muted"
+            >
+              + תלמיד חדש
+            </Link>
+            <Link href="/students/" className="text-sm text-brand hover:underline">
+              כל התלמידים ←
+            </Link>
+          </div>
         </div>
         {students.length === 0 ? (
           <p className="mt-3 text-sm text-muted-foreground">
