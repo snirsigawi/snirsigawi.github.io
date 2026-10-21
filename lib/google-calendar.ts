@@ -24,7 +24,10 @@ export type CalendarEvent = {
 };
 
 /** Upcoming events from the public teaching calendar. */
-export async function listUpcomingEvents(max = 5): Promise<CalendarEvent[]> {
+export async function listUpcomingEvents(
+  max = 5,
+  timeMax?: Date,
+): Promise<CalendarEvent[]> {
   const url = new URL(
     `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(CALENDAR_ID)}/events`,
   );
@@ -33,6 +36,7 @@ export async function listUpcomingEvents(max = 5): Promise<CalendarEvent[]> {
   url.searchParams.set("singleEvents", "true");
   url.searchParams.set("orderBy", "startTime");
   url.searchParams.set("timeMin", new Date().toISOString());
+  if (timeMax) url.searchParams.set("timeMax", timeMax.toISOString());
 
   const res = await fetch(url.toString());
   if (!res.ok) {
@@ -63,6 +67,15 @@ export async function listUpcomingEvents(max = 5): Promise<CalendarEvent[]> {
     end: e.end?.dateTime ?? e.end?.date ?? null,
     recurringEventId: e.recurringEventId ?? null,
   }));
+}
+
+/** All events starting within the next `days` days (up to `max`). */
+export async function listEventsInDays(
+  days: number,
+  max = 50,
+): Promise<CalendarEvent[]> {
+  const timeMax = new Date(Date.now() + days * 86_400_000);
+  return listUpcomingEvents(max, timeMax);
 }
 
 /**

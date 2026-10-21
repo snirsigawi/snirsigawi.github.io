@@ -14,6 +14,7 @@ import {
 import { getReminders, type ReminderItem } from "@/lib/reminders";
 import {
   listUpcomingEvents,
+  listEventsInDays,
   type CalendarEvent,
 } from "@/lib/google-calendar";
 import { formatDateHe } from "@/lib/datetime";
@@ -37,6 +38,10 @@ export default function DashboardPage() {
   const [archivedCount, setArchivedCount] = useState(0);
   const [reminders, setReminders] = useState<ReminderItem[]>([]);
   const [googleEvents, setGoogleEvents] = useState<CalendarEvent[] | null>(null);
+  const [expanded, setExpanded] = useState(false);
+  const [expandedEvents, setExpandedEvents] = useState<CalendarEvent[] | null>(
+    null,
+  );
   const [busy, setBusy] = useState(false);
 
   const {
@@ -92,6 +97,25 @@ export default function DashboardPage() {
       setBusy(false);
     }
   }
+
+  /** Expand: show every lesson in the coming 3 days instead of the next 5. */
+  async function toggleExpandSchedule() {
+    if (expanded) {
+      setExpanded(false);
+      return;
+    }
+    setExpanded(true);
+    if (expandedEvents !== null) return;
+    try {
+      const ev = await listEventsInDays(3, 25);
+      setExpandedEvents(ev);
+      await applyPrediction(ev);
+    } catch {
+      setExpanded(false);
+    }
+  }
+
+  const shownEvents = expanded ? (expandedEvents ?? googleEvents) : googleEvents;
 
   const toastStudentName =
     toast && studentList.find((s) => s.id === toast.studentId)?.name;
@@ -197,10 +221,27 @@ export default function DashboardPage() {
       {/* Google Calendar events */}
       {googleEvents && (
         <section>
-          <h2 className="font-heading text-lg font-semibold">לוח השיעורים</h2>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="font-heading text-lg font-semibold">לוח השיעורים</h2>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={toggleExpandSchedule}
+                className="rounded-lg border border-border px-2 py-1.5 text-xs font-medium transition-colors hover:bg-muted"
+              >
+                {expanded ? "כיווץ" : "הרחבה — 3 ימים"}
+              </button>
+              <Link
+                href="/calendar/"
+                className="text-sm text-brand hover:underline"
+              >
+                30 הימים הקרובים ←
+              </Link>
+            </div>
+          </div>
           <div className="mt-3">
             <CalendarSchedule
-              events={googleEvents}
+              events={shownEvents ?? []}
               links={links}
               students={studentList}
               onLink={linkEvent}
