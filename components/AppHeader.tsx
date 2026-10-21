@@ -6,6 +6,7 @@ import { SignOutButton } from "@/components/SignOutButton";
 const navItems = [
   { href: "/", label: "ראשי" },
   { href: "/students/", label: "תלמידים" },
+  { href: "/calendar/", label: "לוח שיעורים" },
   { href: "/settings/", label: "הגדרות" },
 ];
 
