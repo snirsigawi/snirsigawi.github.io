@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { CalendarEvent } from "@/lib/google-calendar";
+import { LessonEditOverlay } from "@/components/lessons/LessonEditOverlay";
 
 /**
  * Agenda-style schedule: each day has a bold date block on the side, and events
@@ -113,6 +114,10 @@ export default function CalendarSchedule({
 }: CalendarScheduleProps) {
   const days = groupByDay(events);
   const [openPicker, setOpenPicker] = useState<string | null>(null);
+  const [editing, setEditing] = useState<{
+    event: CalendarEvent;
+    studentId: string;
+  } | null>(null);
 
   if (days.length === 0) {
     return (
@@ -178,17 +183,28 @@ export default function CalendarSchedule({
                     {editable && (
                       <div className="mt-2">
                         {linkedStudentId ? (
-                          <span className="inline-flex items-center gap-1.5 rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800 dark:bg-green-950 dark:text-green-200">
-                            {studentName(linkedStudentId)}
+                          <>
+                            <span className="inline-flex items-center gap-1.5 rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800 dark:bg-green-950 dark:text-green-200">
+                              {studentName(linkedStudentId)}
+                              <button
+                                type="button"
+                                onClick={() => onUnlink(event)}
+                                className="ml-1 text-green-700 hover:text-green-900 dark:text-green-300 dark:hover:text-green-100"
+                                title="ניתוק תלמיד"
+                              >
+                                ✕
+                              </button>
+                            </span>
                             <button
                               type="button"
-                              onClick={() => onUnlink(event)}
-                              className="ml-1 text-green-700 hover:text-green-900 dark:text-green-300 dark:hover:text-green-100"
-                              title="ניתוק תלמיד"
+                              onClick={() =>
+                                setEditing({ event, studentId: linkedStudentId })
+                              }
+                              className="ms-2 rounded-full border border-border px-2.5 py-0.5 text-xs text-muted-foreground transition-colors hover:border-brand hover:text-brand"
                             >
-                              ✕
+                              עריכת שיעור
                             </button>
-                          </span>
+                          </>
                         ) : (
                           <button
                             type="button"
@@ -231,16 +247,30 @@ export default function CalendarSchedule({
                     )}
                   </div>
 
-                  {/* Detach from student profile */}
+                  {/* Detach from student profile + edit */}
                   {removable && onRemoveEvent && (
-                    <button
-                      type="button"
-                      onClick={() => onRemoveEvent(event)}
-                      className="shrink-0 self-center rounded-lg px-2 py-1 text-muted-foreground transition-colors hover:bg-red-50 hover:text-red-700 dark:hover:bg-red-950 dark:hover:text-red-300"
-                      title="ניתוק שיעור"
-                    >
-                      ✕
-                    </button>
+                    <div className="flex shrink-0 items-center self-center">
+                      {linkedStudentId && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setEditing({ event, studentId: linkedStudentId })
+                          }
+                          className="rounded-lg px-2 py-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                          title="עריכת שיעור"
+                        >
+                          ✎
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => onRemoveEvent(event)}
+                        className="rounded-lg px-2 py-1 text-muted-foreground transition-colors hover:bg-red-50 hover:text-red-700 dark:hover:bg-red-950 dark:hover:text-red-300"
+                        title="ניתוק שיעור"
+                      >
+                        ✕
+                      </button>
+                    </div>
                   )}
                 </div>
               );
@@ -248,6 +278,14 @@ export default function CalendarSchedule({
           </div>
         </section>
       ))}
+
+      {editing && (
+        <LessonEditOverlay
+          event={editing.event}
+          studentId={editing.studentId}
+          onClose={() => setEditing(null)}
+        />
+      )}
     </div>
   );
 }

@@ -23,10 +23,13 @@ export function LessonForm({
   mode,
   lessonId,
   initial,
+  onDone,
 }: {
   mode: "create" | "update";
   lessonId?: string;
   initial: LessonInitial;
+  /** When set (overlay usage), called on save/cancel instead of navigating. */
+  onDone?: () => void;
 }) {
   const router = useRouter();
   const [usedPresentation, setUsedPresentation] = useState(initial.usedPresentation);
@@ -53,7 +56,8 @@ export function LessonForm({
       } else if (lessonId) {
         await updateLesson(lessonId, result.input);
       }
-      router.push(`/lessons/?id=${initial.studentId}`);
+      if (onDone) onDone();
+      else router.push(`/lessons/?id=${initial.studentId}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "שמירה נכשלה");
       setPending(false);
@@ -228,7 +232,7 @@ export function LessonForm({
       <div className="flex items-center justify-end gap-2 border-t border-border pt-4">
         <button
           type="button"
-          onClick={() => router.back()}
+          onClick={() => (onDone ? onDone() : router.back())}
           className="rounded-lg border border-border px-4 py-2 text-sm transition-colors hover:bg-muted"
         >
           ביטול
