@@ -24,6 +24,7 @@ export function StudentForm({
   const [initial, setInitial] = useState<StudentDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const [requiresFollowup, setRequiresFollowup] = useState(false);
 
   useEffect(() => {
     if (mode === "update" && studentId) {
@@ -32,6 +33,7 @@ export function StudentForm({
     async function getStudentDetailWrapper(id: string) {
       const s = await getStudentDetail(id);
       setInitial(s);
+      setRequiresFollowup(s?.requiresFollowup ?? false);
     }
   }, [mode, studentId]);
 
@@ -263,10 +265,13 @@ export function StudentForm({
                 id="requiresFollowup"
                 name="requiresFollowup"
                 type="checkbox"
-                defaultChecked={initial?.requiresFollowup ?? false}
+                checked={requiresFollowup}
+                onChange={(e) => setRequiresFollowup(e.target.checked)}
                 className="h-4 w-4 accent-brand"
               />
-              <span className="text-sm">אין צורך במעקב (ברירת מחדל)</span>
+              <span className="text-sm">
+                {requiresFollowup ? "יש צורך במעקב" : "אין צורך במעקב"}
+              </span>
             </div>
             <p className="mt-2 text-xs text-muted-foreground">
               כשמסומן, התלמיד.ה יופיע.ת בעמוד הבית למעקב אחרי שיעורי בית — שלושה
