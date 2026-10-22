@@ -2,13 +2,7 @@ import { supabase } from "@/lib/supabase";
 import { listHolidays } from "@/lib/db";
 
 export type ReminderItem = {
-  kind:
-    | "uncheckedHomework"
-    | "promisedNext"
-    | "topicGap"
-    | "birthday"
-    | "specialDate"
-    | "holiday";
+  kind: "birthday" | "specialDate" | "holiday";
   studentId?: string;
   studentName?: string;
   text: string;
@@ -35,19 +29,10 @@ function sameDayNextYear(d: Date, now: Date): Date {
   return anniversary;
 }
 
-type LessonRow = {
-  starts_at: string;
-  planned_topics: string | null;
-  covered_topics: string | null;
-  homework_assigned: string | null;
-  promised_next: string | null;
-  homework_checked: boolean;
-};
-
 /**
- * Tutor-facing reminder list (no notifications — just a nudge list):
- * unchecked homework, promises, planned-vs-covered gaps,
- * birthdays/special dates within 14 days, upcoming holidays (30 days).
+ * Date-based nudges only: birthdays/special dates within 14 days and upcoming
+ * holidays (30 days). Homework follow-ups are handled separately (per student
+ * opt-in) — see `getFollowupCandidates`.
  */
 export async function getReminders(): Promise<ReminderItem[]> {
   const now = new Date();
@@ -55,46 +40,11 @@ export async function getReminders(): Promise<ReminderItem[]> {
 
   const { data: students, error } = await supabase
     .from("students")
-    .select("id, name, special_dates(*), lessons(*)")
+    .select("id, name, special_dates(*)")
     .eq("status", "active");
   if (error) throw new Error(error.message);
 
   for (const s of students ?? []) {
-    const lessons = (s.lessons ?? []) as LessonRow[];
-    lessons.sort((a, b) => (a.starts_at < b.starts_at ? 1 : -1));
-    const last = lessons[0];
-
-    if (last) {
-      if (last.homework_assigned && !last.homework_checked) {
-        items.push({
-          kind: "uncheckedHomework",
-          studentId: s.id,
-          studentName: s.name,
-          text: `לא נבדקו שיעורי בית: ${last.homework_assigned}`,
-        });
-      }
-      if (last.promised_next) {
-        items.push({
-          kind: "promisedNext",
-          studentId: s.id,
-          studentName: s.name,
-          text: `הובטח לשיעור הבא: ${last.promised_next}`,
-        });
-      }
-      if (
-        last.planned_topics &&
-        last.covered_topics !== null &&
-        last.covered_topics !== last.planned_topics
-      ) {
-        items.push({
-          kind: "topicGap",
-          studentId: s.id,
-          studentName: s.name,
-          text: `פער נושאים (מתוכנן: ${last.planned_topics} · כוסה: ${last.covered_topics || "—"})`,
-        });
-      }
-    }
-
     for (const sd of s.special_dates ?? []) {
       const d = new Date(`${sd.date}T00:00:00Z`);
       if (Number.isNaN(d.getTime())) continue;

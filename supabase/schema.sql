@@ -27,7 +27,9 @@ create table students (
   what_for         text,
   birthday         date,
   lesson_duration  int not null default 50, -- minutes per lesson
-  general_notes    text
+  general_notes    text,
+  requires_followup boolean not null default false, -- show in homepage follow-up list
+  followup_done_at  timestamptz -- last time the tutor marked the follow-up as done
 );
 
 create trigger students_set_updated_at

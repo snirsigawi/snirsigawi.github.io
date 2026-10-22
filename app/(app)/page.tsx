@@ -7,6 +7,9 @@ import {
   getPreviousLesson,
   getStudentsSummary,
   countStudents,
+  getFollowupCandidates,
+  markFollowupDone,
+  type FollowupCandidate,
   type NextLesson,
   type Lesson,
   type StudentSummary,
@@ -15,6 +18,7 @@ import { getReminders, type ReminderItem } from "@/lib/reminders";
 import {
   listUpcomingEvents,
   listEventsInDays,
+  listTodayEvents,
   type CalendarEvent,
 } from "@/lib/google-calendar";
 import { formatDateHe } from "@/lib/datetime";
@@ -23,9 +27,6 @@ import LinkToast from "@/components/LinkToast";
 import { useCalendarLinking } from "@/components/useCalendarLinking";
 
 const REMINDER_LABELS: Record<string, string> = {
-  uncheckedHomework: "שיעורי בית",
-  promisedNext: "הבטחה",
-  topicGap: "פער נושאים",
   birthday: "יום הולדת",
   specialDate: "תאריך מיוחד",
   holiday: "חג",
@@ -37,6 +38,8 @@ export default function DashboardPage() {
   const [students, setStudents] = useState<StudentSummary[]>([]);
   const [archivedCount, setArchivedCount] = useState(0);
   const [reminders, setReminders] = useState<ReminderItem[]>([]);
+  const [followups, setFollowups] = useState<FollowupCandidate[]>([]);
+  const [todayEvents, setTodayEvents] = useState<CalendarEvent[]>([]);
   const [googleEvents, setGoogleEvents] = useState<CalendarEvent[] | null>(null);
   const [expanded, setExpanded] = useState(false);
   const [expandedEvents, setExpandedEvents] = useState<CalendarEvent[] | null>(
@@ -74,6 +77,13 @@ export default function DashboardPage() {
     getStudentsSummary().then((s) => active && setStudents(s));
     countStudents("archived").then((c) => active && setArchivedCount(c));
     getReminders().then((r) => active && setReminders(r));
+    getFollowupCandidates()
+      .then((f) => active && setFollowups(f))
+      .catch(() => active && setFollowups([]));
+    // Needed to suppress a follow-up box when the student has a lesson today.
+    listTodayEvents()
+      .then((e) => active && setTodayEvents(e))
+      .catch(() => active && setTodayEvents([]));
 
     listUpcomingEvents(5)
       .then(async (e) => {
@@ -143,6 +153,21 @@ export default function DashboardPage() {
 
   const toastStudentName =
     toast && studentList.find((s) => s.id === toast.studentId)?.name;
+
+  // A follow-up box is suppressed while the student has a lesson scheduled today.
+  const visibleFollowups = followups.filter(
+    (f) => !todayEvents.some((e) => links.get(e.id) === f.studentId),
+  );
+
+  async function handleFollowupDone(studentId: string) {
+    setFollowups((prev) => prev.filter((f) => f.studentId !== studentId));
+    try {
+      await markFollowupDone(studentId);
+    } catch {
+      // Keep the UI truthful if the write fails (e.g. migration not run yet).
+      getFollowupCandidates().then(setFollowups).catch(() => {});
+    }
+  }
 
   return (
     <div className="space-y-8">
@@ -248,12 +273,50 @@ export default function DashboardPage() {
         )}
       </section>
 
-      {/* Reminders */}
+      {/* Homework follow-ups — per student, opt-in */}
       <section>
-        <h2 className="font-heading text-lg font-semibold">תזכורות</h2>
-        {reminders.length === 0 ? (
-          <p className="mt-3 text-sm text-muted-foreground">אין תזכורות</p>
+        <h2 className="font-heading text-lg font-semibold">
+          מעקב אחרי שיעורי בית
+        </h2>
+        {visibleFollowups.length === 0 ? (
+          <p className="mt-3 text-sm text-muted-foreground">
+            אין תלמידים שממתינים למעקב.
+          </p>
         ) : (
+          <ul className="mt-3 grid gap-2 sm:grid-cols-2">
+            {visibleFollowups.map((f) => (
+              <li
+                key={f.studentId}
+                className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-background p-3"
+              >
+                <div className="min-w-0">
+                  <Link
+                    href={`/students/view/?id=${f.studentId}`}
+                    className="font-medium hover:underline"
+                  >
+                    {f.name}
+                  </Link>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    השיעור האחרון תועד לפני {f.daysSinceLastLesson} ימים
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleFollowupDone(f.studentId)}
+                  className="rounded-lg border border-brand/30 bg-brand/10 px-3 py-1.5 text-xs font-medium text-brand transition-colors hover:bg-brand/20"
+                >
+                  סיימתי מעקב
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      {/* Upcoming dates */}
+      {reminders.length > 0 && (
+        <section>
+          <h2 className="font-heading text-lg font-semibold">תאריכים קרובים</h2>
           <ul className="mt-3 grid gap-2 sm:grid-cols-2">
             {reminders.map((r, i) => (
               <li
@@ -277,8 +340,8 @@ export default function DashboardPage() {
               </li>
             ))}
           </ul>
-        )}
-      </section>
+        </section>
+      )}
 
       {/* Google Calendar events */}
       {googleEvents && (

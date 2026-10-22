@@ -155,6 +155,15 @@ export default function ViewStudentPage() {
             תלמיד בארכיון
           </span>
         )}
+        <span
+          className={`mt-3 inline-block rounded-full px-3 py-1 text-xs ${
+            student.requiresFollowup
+              ? "bg-brand/10 text-brand"
+              : "bg-muted text-muted-foreground"
+          } ${isArchived ? "ms-2" : ""}`}
+        >
+          {student.requiresFollowup ? "מעקב פעיל" : "אין צורך במעקב"}
+        </span>
       </div>
 
       <section className="grid gap-4 sm:grid-cols-2">

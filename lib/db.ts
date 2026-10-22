@@ -21,6 +21,8 @@ export type Student = {
   birthday: string | null; // YYYY-MM-DD
   lessonDuration: number; // minutes, default 50
   generalNotes: string | null;
+  requiresFollowup: boolean;
+  followupDoneAt: string | null;
 };
 
 export type SkillLevel = {
@@ -83,6 +85,7 @@ export type StudentInput = {
   birthday: string | null;
   lessonDuration: number;
   generalNotes: string | null;
+  requiresFollowup: boolean;
   skillLevels: SkillLevelInput[];
   specialDates: { date: string; label: string }[];
 };
@@ -143,6 +146,8 @@ function mapStudent(row: Record<string, unknown>): Student {
     birthday: (row.birthday as string | null) ?? null,
     lessonDuration: ((row.lesson_duration as number | null) ?? 50),
     generalNotes: (row.general_notes as string | null) ?? null,
+    requiresFollowup: Boolean(row.requires_followup),
+    followupDoneAt: (row.followup_done_at as string | null) ?? null,
   };
 }
 
@@ -340,6 +345,7 @@ function fullStudentPayload(input: StudentInput) {
     ...baseStudentPayload(input),
     lesson_duration: input.lessonDuration,
     general_notes: input.generalNotes,
+    requires_followup: input.requiresFollowup,
   };
 }
 
@@ -546,6 +552,80 @@ export async function getStudentsSummary(): Promise<StudentSummary[]> {
     name: row.name,
     lessonsCount: (row.lessons?.[0]?.count as number) ?? 0,
   }));
+}
+
+/* ------------------------------------------------------------------ */
+/* Homework follow-ups                                                 */
+/* ------------------------------------------------------------------ */
+
+export type FollowupCandidate = {
+  studentId: string;
+  name: string;
+  /** When the last documented lesson actually ended (ISO). */
+  lastLessonEndedAt: string;
+  daysSinceLastLesson: number;
+};
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+const FOLLOWUP_AFTER_DAYS = 3;
+
+/**
+ * Students the tutor opted into follow-ups (`requires_followup`) whose last
+ * *documented* lesson ended at least 3 days ago and who haven't been marked
+ * as handled since that lesson.
+ */
+export async function getFollowupCandidates(): Promise<FollowupCandidate[]> {
+  const now = Date.now();
+  const { data, error } = await supabase
+    .from("students")
+    .select("id, name, lesson_duration, followup_done_at, lessons(starts_at, ends_at)")
+    .eq("status", "active")
+    .eq("requires_followup", true);
+  if (error) throw new Error(error.message);
+
+  const out: FollowupCandidate[] = [];
+
+  for (const s of data ?? []) {
+    const duration = ((s.lesson_duration as number | null) ?? 50) * 60_000;
+    const rows = (s.lessons ?? []) as {
+      starts_at: string;
+      ends_at: string | null;
+    }[];
+
+    let lastEnd: number | null = null;
+    for (const l of rows) {
+      const start = Date.parse(l.starts_at);
+      if (Number.isNaN(start) || start > now) continue;
+      const rawEnd = l.ends_at ? Date.parse(l.ends_at) : start + duration;
+      const end = Number.isNaN(rawEnd) ? start + duration : rawEnd;
+      if (lastEnd === null || end > lastEnd) lastEnd = end;
+    }
+
+    if (lastEnd === null) continue;
+    const days = Math.floor((now - lastEnd) / DAY_MS);
+    if (days < FOLLOWUP_AFTER_DAYS) continue;
+
+    const doneAt = s.followup_done_at ? Date.parse(s.followup_done_at) : NaN;
+    if (!Number.isNaN(doneAt) && doneAt >= lastEnd) continue;
+
+    out.push({
+      studentId: s.id as string,
+      name: s.name as string,
+      lastLessonEndedAt: new Date(lastEnd).toISOString(),
+      daysSinceLastLesson: days,
+    });
+  }
+
+  return out.sort((a, b) => b.daysSinceLastLesson - a.daysSinceLastLesson);
+}
+
+/** Mark a student's follow-up as handled (hides the box until the next lesson). */
+export async function markFollowupDone(studentId: string): Promise<void> {
+  const { error } = await supabase
+    .from("students")
+    .update({ followup_done_at: new Date().toISOString() })
+    .eq("id", studentId);
+  if (error) throw new Error(error.message);
 }
 
 /* ------------------------------------------------------------------ */

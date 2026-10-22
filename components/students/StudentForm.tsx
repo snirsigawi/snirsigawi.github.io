@@ -254,6 +254,25 @@ export function StudentForm({
               className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 outline-none focus:border-brand"
             />
           </div>
+          <div className="rounded-xl border border-border bg-muted/30 p-3">
+            <label htmlFor="requiresFollowup" className="block text-sm font-medium">
+              לעקוב אחרי תלמיד.ה?
+            </label>
+            <div className="mt-2 flex items-center gap-2">
+              <input
+                id="requiresFollowup"
+                name="requiresFollowup"
+                type="checkbox"
+                defaultChecked={initial?.requiresFollowup ?? false}
+                className="h-4 w-4 accent-brand"
+              />
+              <span className="text-sm">אין צורך במעקב (ברירת מחדל)</span>
+            </div>
+            <p className="mt-2 text-xs text-muted-foreground">
+              כשמסומן, התלמיד.ה יופיע.ת בעמוד הבית למעקב אחרי שיעורי בית — שלושה
+              ימים אחרי סיום השיעור האחרון שתועד.
+            </p>
+          </div>
         </div>
       </section>
 

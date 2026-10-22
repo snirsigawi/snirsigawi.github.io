@@ -75,6 +75,7 @@ export function parseStudentForm(formData: FormData): StudentInput {
         ? Number(durationRaw)
         : 50,
     generalNotes: get("generalNotes") || null,
+    requiresFollowup: formData.get("requiresFollowup") === "on",
     skillLevels: parseSkillLevels(formData),
     specialDates: parseSpecialDates(formData),
   };

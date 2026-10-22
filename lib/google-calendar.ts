@@ -27,6 +27,7 @@ export type CalendarEvent = {
 export async function listUpcomingEvents(
   max = 5,
   timeMax?: Date,
+  timeMin: Date = new Date(),
 ): Promise<CalendarEvent[]> {
   const url = new URL(
     `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(CALENDAR_ID)}/events`,
@@ -35,7 +36,7 @@ export async function listUpcomingEvents(
   url.searchParams.set("maxResults", String(max));
   url.searchParams.set("singleEvents", "true");
   url.searchParams.set("orderBy", "startTime");
-  url.searchParams.set("timeMin", new Date().toISOString());
+  url.searchParams.set("timeMin", timeMin.toISOString());
   if (timeMax) url.searchParams.set("timeMax", timeMax.toISOString());
 
   const res = await fetch(url.toString());
@@ -76,6 +77,15 @@ export async function listEventsInDays(
 ): Promise<CalendarEvent[]> {
   const timeMax = new Date(Date.now() + days * 86_400_000);
   return listUpcomingEvents(max, timeMax);
+}
+
+/** Every event scheduled for today (from 00:00, including ones already past). */
+export async function listTodayEvents(): Promise<CalendarEvent[]> {
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(start);
+  end.setDate(end.getDate() + 1);
+  return listUpcomingEvents(50, end, start);
 }
 
 /**
