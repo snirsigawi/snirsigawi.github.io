@@ -304,13 +304,12 @@ async function replaceSpecialDates(
   if (error) throw new Error(error.message);
 }
 
-// Column name set once we know schema is up-to-date. Start by assuming the
-// columns ARE present (the happy path — user ran the one-time ALTER TABLE).
-// If Supabase replies "column does not exist", we flip to false and retry
-// without them, so the app degrades gracefully before the migration runs.
-let extraStudentColsReady = true;
-const EXTRA_STUDENT_COLS = ["lesson_duration", "general_notes"] as const;
-
+// Always try with the two newer student columns first. If Supabase hasn't
+// gotten the ALTER TABLE yet it will reject with "column … does not exist";
+// in that case we retry without them. The fallback path is only hit before
+// the one-time migration runs, so once the columns exist every save goes
+// straight through with no retries — and there's no module-level flag that
+// can get stuck in the wrong state.
 function baseStudentPayload(input: StudentInput) {
   return {
     name: input.name,
@@ -325,8 +324,9 @@ function baseStudentPayload(input: StudentInput) {
   };
 }
 
-function extraStudentPayload(input: StudentInput) {
+function fullStudentPayload(input: StudentInput) {
   return {
+    ...baseStudentPayload(input),
     lesson_duration: input.lessonDuration,
     general_notes: input.generalNotes,
   };
@@ -334,26 +334,32 @@ function extraStudentPayload(input: StudentInput) {
 
 function looksLikeMissingColumn(err: unknown): boolean {
   const msg = (err as { message?: string } | null)?.message ?? "";
-  return (
-    msg.includes("column") &&
-    (msg.includes("does not exist") || msg.includes("doesn't exist"))
-  );
+  return msg.includes("does not exist");
 }
 
 export async function createStudent(input: StudentInput): Promise<string> {
-  let payload: Record<string, unknown> = baseStudentPayload(input);
-  if (extraStudentColsReady) {
-    payload = { ...payload, ...extraStudentPayload(input) };
-  }
+  const full = fullStudentPayload(input);
+  const res = await supabase
+    .from("students")
+    .insert(full)
+    .select("id")
+    .single();
 
-  let res = await supabase.from("students").insert(payload).select("id").single();
-  if (res.error && extraStudentColsReady && looksLikeMissingColumn(res.error)) {
-    extraStudentColsReady = false;
-    payload = baseStudentPayload(input);
-    res = await supabase.from("students").insert(payload).select("id").single();
+  let data: { id: string };
+  if (res.error && looksLikeMissingColumn(res.error)) {
+    // Schema not migrated yet — retry without the new columns.
+    const fallback = await supabase
+      .from("students")
+      .insert(baseStudentPayload(input))
+      .select("id")
+      .single();
+    if (fallback.error) throw new Error(fallback.error.message);
+    data = fallback.data!;
+  } else if (res.error) {
+    throw new Error(res.error.message);
+  } else {
+    data = res.data!;
   }
-  if (res.error) throw new Error(res.error.message);
-  const data = res.data!;
 
   await writeSkillLevels(data.id, input.skillLevels);
   await replaceSpecialDates(data.id, input.specialDates);
@@ -361,18 +367,17 @@ export async function createStudent(input: StudentInput): Promise<string> {
 }
 
 export async function updateStudent(id: string, input: StudentInput): Promise<void> {
-  let payload: Record<string, unknown> = baseStudentPayload(input);
-  if (extraStudentColsReady) {
-    payload = { ...payload, ...extraStudentPayload(input) };
-  }
+  const full = fullStudentPayload(input);
+  const res = await supabase.from("students").update(full).eq("id", id);
 
-  let res = await supabase.from("students").update(payload).eq("id", id);
-  if (res.error && extraStudentColsReady && looksLikeMissingColumn(res.error)) {
-    extraStudentColsReady = false;
-    payload = baseStudentPayload(input);
-    res = await supabase.from("students").update(payload).eq("id", id);
+  if (res.error && looksLikeMissingColumn(res.error)) {
+    await supabase
+      .from("students")
+      .update(baseStudentPayload(input))
+      .eq("id", id);
+  } else if (res.error) {
+    throw new Error(res.error.message);
   }
-  if (res.error) throw new Error(res.error.message);
   await replaceSkillLevels(id, input.skillLevels);
   await replaceSpecialDates(id, input.specialDates);
 }
