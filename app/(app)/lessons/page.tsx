@@ -53,7 +53,7 @@ export default function LessonsPage() {
             ארכיון שיעורים{studentName ? `: ${studentName}` : ""}
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            {lessons.length} שיעורים · תאריך וזמן לכל שיעור
+            {lessons.length} שיעורים תועדו
           </p>
         </div>
         {studentId && (
