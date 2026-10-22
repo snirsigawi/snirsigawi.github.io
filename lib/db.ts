@@ -304,48 +304,75 @@ async function replaceSpecialDates(
   if (error) throw new Error(error.message);
 }
 
+// Column name set once we know schema is up-to-date; starts without the
+// two optional student fields so the app keeps working even before the
+// one-time ALTER TABLE migration runs.
+let extraStudentColsReady = false;
+const EXTRA_STUDENT_COLS = ["lesson_duration", "general_notes"] as const;
+
+function baseStudentPayload(input: StudentInput) {
+  return {
+    name: input.name,
+    age: input.age,
+    age_range: input.ageRange,
+    city: input.city,
+    country: input.country,
+    lessons_location: input.lessonsLocation,
+    why_learning: input.whyLearning,
+    what_for: input.whatFor,
+    birthday: input.birthday,
+  };
+}
+
+function extraStudentPayload(input: StudentInput) {
+  return {
+    lesson_duration: input.lessonDuration,
+    general_notes: input.generalNotes,
+  };
+}
+
+function looksLikeMissingColumn(err: unknown): boolean {
+  const msg = (err as { message?: string } | null)?.message ?? "";
+  return (
+    msg.includes("column") &&
+    (msg.includes("does not exist") || msg.includes("doesn't exist"))
+  );
+}
+
 export async function createStudent(input: StudentInput): Promise<string> {
-  const { data, error } = await supabase
-    .from("students")
-    .insert({
-      name: input.name,
-      age: input.age,
-      age_range: input.ageRange,
-      city: input.city,
-      country: input.country,
-      lessons_location: input.lessonsLocation,
-      why_learning: input.whyLearning,
-      what_for: input.whatFor,
-      birthday: input.birthday,
-      lesson_duration: input.lessonDuration,
-      general_notes: input.generalNotes,
-    })
-    .select("id")
-    .single();
-  if (error) throw new Error(error.message);
+  let payload: Record<string, unknown> = baseStudentPayload(input);
+  if (extraStudentColsReady) {
+    payload = { ...payload, ...extraStudentPayload(input) };
+  }
+
+  let res = await supabase.from("students").insert(payload).select("id").single();
+  if (res.error && !extraStudentColsReady && looksLikeMissingColumn(res.error)) {
+    // Columns exist — next requests include them.
+    extraStudentColsReady = true;
+    payload = { ...baseStudentPayload(input), ...extraStudentPayload(input) };
+    res = await supabase.from("students").insert(payload).select("id").single();
+  }
+  if (res.error) throw new Error(res.error.message);
+  const data = res.data!;
+
   await writeSkillLevels(data.id, input.skillLevels);
   await replaceSpecialDates(data.id, input.specialDates);
   return data.id;
 }
 
 export async function updateStudent(id: string, input: StudentInput): Promise<void> {
-  const { error } = await supabase
-    .from("students")
-    .update({
-      name: input.name,
-      age: input.age,
-      age_range: input.ageRange,
-      city: input.city,
-      country: input.country,
-      lessons_location: input.lessonsLocation,
-      why_learning: input.whyLearning,
-      what_for: input.whatFor,
-      birthday: input.birthday,
-      lesson_duration: input.lessonDuration,
-      general_notes: input.generalNotes,
-    })
-    .eq("id", id);
-  if (error) throw new Error(error.message);
+  let payload: Record<string, unknown> = baseStudentPayload(input);
+  if (extraStudentColsReady) {
+    payload = { ...payload, ...extraStudentPayload(input) };
+  }
+
+  let res = await supabase.from("students").update(payload).eq("id", id);
+  if (res.error && !extraStudentColsReady && looksLikeMissingColumn(res.error)) {
+    extraStudentColsReady = true;
+    payload = { ...baseStudentPayload(input), ...extraStudentPayload(input) };
+    res = await supabase.from("students").update(payload).eq("id", id);
+  }
+  if (res.error) throw new Error(res.error.message);
   await replaceSkillLevels(id, input.skillLevels);
   await replaceSpecialDates(id, input.specialDates);
 }
