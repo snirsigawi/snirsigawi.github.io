@@ -2,7 +2,11 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { listLessons, type Lesson } from "@/lib/db";
+import {
+  listLessons,
+  getStudentName,
+  type Lesson,
+} from "@/lib/db";
 import { LessonCard } from "@/components/lessons/LessonCard";
 
 export default function LessonsPage() {
@@ -12,20 +16,15 @@ export default function LessonsPage() {
   const [missing, setMissing] = useState(false);
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const id = params.get("id");
+    const id = new URLSearchParams(window.location.search).get("id");
     if (!id) {
       setMissing(true);
       return;
     }
     setStudentId(id);
-    listLessons(id).then((rows) => {
-      setLessons(rows);
-    });
-    // Student name is shown on each card link target; fetch minimal via db.
-    import("@/lib/db").then(({ getStudentDetail }) =>
-      getStudentDetail(id).then((s) => s && setStudentName(s.name)),
-    );
+    // Both in parallel — two round trips total, no more.
+    listLessons(id).then(setLessons).catch(() => setLessons([]));
+    getStudentName(id).then((n) => n && setStudentName(n)).catch(() => {});
   }, []);
 
   if (missing) {

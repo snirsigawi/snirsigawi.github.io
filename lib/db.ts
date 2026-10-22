@@ -193,8 +193,19 @@ export async function countStudents(status: string): Promise<number> {
   return count ?? 0;
 }
 
+export async function getStudentName(
+  id: string,
+): Promise<string | null> {
+  const { data, error } = await supabase
+    .from("students")
+    .select("name")
+    .eq("id", id)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return (data as { name: string } | null)?.name ?? null;
+}
+
 export async function getStudentDetail(id: string): Promise<StudentDetail | null> {
-  // Fetch the student row first — if this fails, nothing else matters.
   const { data: studentRow, error: studentErr } = await supabase
     .from("students")
     .select("*")
