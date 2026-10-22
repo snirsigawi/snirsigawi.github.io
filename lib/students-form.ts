@@ -55,6 +55,7 @@ export function parseStudentForm(formData: FormData): StudentInput {
   const ageRaw = get("age");
   const ageRange = get("ageRange");
   const birthdayRaw = get("birthday");
+  const durationRaw = get("lessonDuration");
 
   return {
     name: get("name"),
@@ -69,6 +70,11 @@ export function parseStudentForm(formData: FormData): StudentInput {
     whyLearning: get("whyLearning") || null,
     whatFor: get("whatFor") || null,
     birthday: birthdayRaw ? toMonthDay(birthdayRaw) : null,
+    lessonDuration:
+      durationRaw && !Number.isNaN(Number(durationRaw))
+        ? Number(durationRaw)
+        : 50,
+    generalNotes: get("generalNotes") || null,
     skillLevels: parseSkillLevels(formData),
     specialDates: parseSpecialDates(formData),
   };

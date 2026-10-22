@@ -128,6 +128,7 @@ export default function ViewStudentPage() {
               {student.country ? `, ${student.country}` : ""}
               {student.age !== null ? ` · גיל ${student.age}` : ""}
               {student.ageRange ? ` · ${student.ageRange}` : ""}
+              {` · שיעור של ${student.lessonDuration} דקות`}
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -182,6 +183,14 @@ export default function ViewStudentPage() {
               למה צריך את זה?
             </h3>
             <p className="mt-1 whitespace-pre-wrap">{student.whatFor}</p>
+          </div>
+        )}
+        {student.generalNotes && (
+          <div className="rounded-xl border border-border bg-background p-4 sm:col-span-2">
+            <h3 className="text-xs font-medium uppercase text-muted-foreground">
+              הערות כלליות
+            </h3>
+            <p className="mt-1 whitespace-pre-wrap">{student.generalNotes}</p>
           </div>
         )}
       </section>

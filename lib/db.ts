@@ -19,6 +19,8 @@ export type Student = {
   whyLearning: string | null;
   whatFor: string | null;
   birthday: string | null; // YYYY-MM-DD
+  lessonDuration: number; // minutes, default 50
+  generalNotes: string | null;
 };
 
 export type SkillLevel = {
@@ -79,6 +81,8 @@ export type StudentInput = {
   whyLearning: string | null;
   whatFor: string | null;
   birthday: string | null;
+  lessonDuration: number;
+  generalNotes: string | null;
   skillLevels: SkillLevelInput[];
   specialDates: { date: string; label: string }[];
 };
@@ -137,6 +141,8 @@ function mapStudent(row: Record<string, unknown>): Student {
     whyLearning: (row.why_learning as string | null) ?? null,
     whatFor: (row.what_for as string | null) ?? null,
     birthday: (row.birthday as string | null) ?? null,
+    lessonDuration: ((row.lesson_duration as number | null) ?? 50),
+    generalNotes: (row.general_notes as string | null) ?? null,
   };
 }
 
@@ -311,6 +317,8 @@ export async function createStudent(input: StudentInput): Promise<string> {
       why_learning: input.whyLearning,
       what_for: input.whatFor,
       birthday: input.birthday,
+      lesson_duration: input.lessonDuration,
+      general_notes: input.generalNotes,
     })
     .select("id")
     .single();
@@ -333,6 +341,8 @@ export async function updateStudent(id: string, input: StudentInput): Promise<vo
       why_learning: input.whyLearning,
       what_for: input.whatFor,
       birthday: input.birthday,
+      lesson_duration: input.lessonDuration,
+      general_notes: input.generalNotes,
     })
     .eq("id", id);
   if (error) throw new Error(error.message);

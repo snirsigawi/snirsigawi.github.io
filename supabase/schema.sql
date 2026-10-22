@@ -25,7 +25,9 @@ create table students (
   lessons_location text,
   why_learning     text,
   what_for         text,
-  birthday         date
+  birthday         date,
+  lesson_duration  int not null default 50, -- minutes per lesson
+  general_notes    text
 );
 
 create trigger students_set_updated_at

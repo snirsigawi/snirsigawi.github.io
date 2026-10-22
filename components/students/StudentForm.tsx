@@ -196,6 +196,21 @@ export function StudentForm({
               className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 outline-none focus:border-brand"
             />
           </div>
+
+          <div>
+            <label htmlFor="lessonDuration" className="block text-sm font-medium">
+              משך שיעור (דקות)
+            </label>
+            <input
+              id="lessonDuration"
+              name="lessonDuration"
+              type="number"
+              min={1}
+              max={480}
+              defaultValue={initial?.lessonDuration ?? 50}
+              className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 outline-none focus:border-brand"
+            />
+          </div>
         </div>
       </section>
 
@@ -223,6 +238,19 @@ export function StudentForm({
               name="whatFor"
               rows={2}
               defaultValue={initial?.whatFor ?? ""}
+              className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 outline-none focus:border-brand"
+            />
+          </div>
+          <div>
+            <label htmlFor="generalNotes" className="block text-sm font-medium">
+              הערות כלליות
+            </label>
+            <textarea
+              id="generalNotes"
+              name="generalNotes"
+              rows={3}
+              defaultValue={initial?.generalNotes ?? ""}
+              placeholder="כל דבר שחשוב לזכור על התלמיד..."
               className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 outline-none focus:border-brand"
             />
           </div>
