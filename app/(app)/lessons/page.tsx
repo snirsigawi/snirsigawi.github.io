@@ -50,9 +50,11 @@ export default function LessonsPage() {
             ← חזרה לכרטיס התלמיד
           </Link>
           <h1 className="mt-2 font-heading text-2xl font-bold">
-            שיעורים{studentName ? `: ${studentName}` : ""}
+            ארכיון שיעורים{studentName ? `: ${studentName}` : ""}
           </h1>
-          <p className="mt-1 text-sm text-muted-foreground">{lessons.length} שיעורים</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {lessons.length} שיעורים · תאריך וזמן לכל שיעור
+          </p>
         </div>
         {studentId && (
           <Link

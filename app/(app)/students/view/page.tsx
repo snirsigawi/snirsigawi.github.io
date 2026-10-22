@@ -26,6 +26,15 @@ function formatDateNoYear(d: string): string {
   }).format(new Date(`${d}T00:00:00Z`));
 }
 
+const fmtLessonDate = new Intl.DateTimeFormat("he-IL", {
+  weekday: "short",
+  day: "numeric",
+  month: "short",
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false,
+});
+
 export default function ViewStudentPage() {
   const [id, setId] = useState<string | null>(null);
   const [student, setStudent] = useState<StudentDetail | null>(null);
@@ -317,7 +326,7 @@ export default function ViewStudentPage() {
             href={`/lessons/?id=${id}`}
             className="text-sm text-brand hover:underline"
           >
-            כל השיעורים ←
+            ארכיון שיעורים ←
           </Link>
         </div>
         {student.lessons.length === 0 ? (
@@ -335,7 +344,7 @@ export default function ViewStudentPage() {
                     style={{ unicodeBidi: "isolate" }}
                     className="font-medium"
                   >
-                    {formatDate(l.startsAt.slice(0, 10))}
+                    {fmtLessonDate.format(new Date(l.startsAt))}
                   </span>
                   <div className="flex items-center gap-2">
                     {l.usedPresentation && (
