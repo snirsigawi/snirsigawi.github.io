@@ -219,7 +219,7 @@ export function StudentForm({
         <div className="grid gap-4">
           <div>
             <label htmlFor="whyLearning" className="block text-sm font-medium">
-              למה לומד עברית?
+              למה החליט.ה ללמוד עברית?
             </label>
             <textarea
               id="whyLearning"
@@ -231,7 +231,7 @@ export function StudentForm({
           </div>
           <div>
             <label htmlFor="whatFor" className="block text-sm font-medium">
-              למה צריך את זה?
+              מה התלמיד.ה יעשה עם הידע שרכש?
             </label>
             <textarea
               id="whatFor"

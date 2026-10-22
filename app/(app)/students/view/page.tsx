@@ -181,7 +181,7 @@ export default function ViewStudentPage() {
         {student.whyLearning && (
           <div className="rounded-xl border border-border bg-background p-4">
             <h3 className="text-xs font-medium uppercase text-muted-foreground">
-              למה לומד עברית?
+              למה החליט.ה ללמוד עברית?
             </h3>
             <p className="mt-1 whitespace-pre-wrap">{student.whyLearning}</p>
           </div>
@@ -189,7 +189,7 @@ export default function ViewStudentPage() {
         {student.whatFor && (
           <div className="rounded-xl border border-border bg-background p-4">
             <h3 className="text-xs font-medium uppercase text-muted-foreground">
-              למה צריך את זה?
+              מה התלמיד.ה יעשה עם הידע שרכש?
             </h3>
             <p className="mt-1 whitespace-pre-wrap">{student.whatFor}</p>
           </div>
