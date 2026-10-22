@@ -304,10 +304,11 @@ async function replaceSpecialDates(
   if (error) throw new Error(error.message);
 }
 
-// Column name set once we know schema is up-to-date; starts without the
-// two optional student fields so the app keeps working even before the
-// one-time ALTER TABLE migration runs.
-let extraStudentColsReady = false;
+// Column name set once we know schema is up-to-date. Start by assuming the
+// columns ARE present (the happy path — user ran the one-time ALTER TABLE).
+// If Supabase replies "column does not exist", we flip to false and retry
+// without them, so the app degrades gracefully before the migration runs.
+let extraStudentColsReady = true;
 const EXTRA_STUDENT_COLS = ["lesson_duration", "general_notes"] as const;
 
 function baseStudentPayload(input: StudentInput) {
@@ -346,10 +347,9 @@ export async function createStudent(input: StudentInput): Promise<string> {
   }
 
   let res = await supabase.from("students").insert(payload).select("id").single();
-  if (res.error && !extraStudentColsReady && looksLikeMissingColumn(res.error)) {
-    // Columns exist — next requests include them.
-    extraStudentColsReady = true;
-    payload = { ...baseStudentPayload(input), ...extraStudentPayload(input) };
+  if (res.error && extraStudentColsReady && looksLikeMissingColumn(res.error)) {
+    extraStudentColsReady = false;
+    payload = baseStudentPayload(input);
     res = await supabase.from("students").insert(payload).select("id").single();
   }
   if (res.error) throw new Error(res.error.message);
@@ -367,9 +367,9 @@ export async function updateStudent(id: string, input: StudentInput): Promise<vo
   }
 
   let res = await supabase.from("students").update(payload).eq("id", id);
-  if (res.error && !extraStudentColsReady && looksLikeMissingColumn(res.error)) {
-    extraStudentColsReady = true;
-    payload = { ...baseStudentPayload(input), ...extraStudentPayload(input) };
+  if (res.error && extraStudentColsReady && looksLikeMissingColumn(res.error)) {
+    extraStudentColsReady = false;
+    payload = baseStudentPayload(input);
     res = await supabase.from("students").update(payload).eq("id", id);
   }
   if (res.error) throw new Error(res.error.message);
