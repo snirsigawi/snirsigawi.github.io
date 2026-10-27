@@ -30,6 +30,8 @@ export type CalendarScheduleProps = {
   /** Show a per-row ✕ to detach the event (used in the student profile). */
   removable?: boolean;
   onRemoveEvent?: (event: CalendarEvent) => void;
+  /** Events rendered dimmed (already passed) — still fully interactive. */
+  mutedIds?: Set<string>;
 };
 
 const dateKeyFmt = new Intl.DateTimeFormat("en-CA", {
@@ -111,6 +113,7 @@ export default function CalendarSchedule({
   editable = true,
   removable = false,
   onRemoveEvent,
+  mutedIds,
 }: CalendarScheduleProps) {
   const days = groupByDay(events);
   const [openPicker, setOpenPicker] = useState<string | null>(null);
@@ -155,18 +158,23 @@ export default function CalendarSchedule({
             {day.events.map(({ event, timeLabel, allDay }) => {
               const linkedStudentId = links.get(event.id);
               const isOpen = openPicker === event.id;
+              const isMuted = mutedIds?.has(event.id) ?? false;
 
               return (
                 <div
                   key={event.id}
-                  className="flex items-start gap-3 rounded-xl border border-border bg-background p-3 shadow-sm transition-shadow hover:shadow-md"
+                  className={`flex items-start gap-3 rounded-xl border border-border p-3 shadow-sm transition-shadow hover:shadow-md ${
+                    isMuted
+                      ? "bg-muted/40 opacity-60"
+                      : "bg-background"
+                  }`}
                 >
                   {/* Time pill */}
                   <span
                     dir="ltr"
                     style={{ unicodeBidi: "isolate" }}
                     className={`shrink-0 rounded-lg px-2.5 py-1 text-sm font-bold tabular-nums ${
-                      allDay
+                      allDay || isMuted
                         ? "bg-muted text-muted-foreground"
                         : "bg-brand/10 text-brand"
                     }`}

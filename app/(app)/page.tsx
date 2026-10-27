@@ -46,6 +46,7 @@ export default function DashboardPage() {
     null,
   );
   const [busy, setBusy] = useState(false);
+  const [showPastToday, setShowPastToday] = useState(false);
 
   const {
     ready,
@@ -126,6 +127,23 @@ export default function DashboardPage() {
   }
 
   const shownEvents = expanded ? (expandedEvents ?? googleEvents) : googleEvents;
+
+  // Lessons from earlier today that already ended — shown dimmed on demand.
+  const shownIds = new Set((shownEvents ?? []).map((e) => e.id));
+  const nowMs = Date.now();
+  const pastToday = showPastToday
+    ? todayEvents.filter(
+        (e) =>
+          !!e.start &&
+          e.start.length > 10 &&
+          !shownIds.has(e.id) &&
+          Date.parse(e.start) < nowMs,
+      )
+    : [];
+  const mutedIds = new Set(pastToday.map((e) => e.id));
+  const scheduleEvents = [...pastToday, ...(shownEvents ?? [])].sort(
+    (a, b) => Date.parse(a.start ?? "") - Date.parse(b.start ?? ""),
+  );
 
   // Next lesson: a DB-planned lesson wins; otherwise fall back to the next
   // Google Calendar event that is linked to a student.
@@ -348,21 +366,33 @@ export default function DashboardPage() {
         <section>
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 className="font-heading text-lg font-semibold">לוח השיעורים</h2>
-            <Link
-              href="/calendar/"
-              className="text-sm text-brand hover:underline"
-            >
-              30 הימים הקרובים ←
-            </Link>
+            <div className="flex items-center gap-4">
+              <button
+                type="button"
+                onClick={() => setShowPastToday((v) => !v)}
+                className="text-sm text-brand hover:underline"
+              >
+                {showPastToday
+                  ? "הסתר שיעורים מהיום"
+                  : "ראה עוד שיעורים מהיום"}
+              </button>
+              <Link
+                href="/calendar/"
+                className="text-sm text-brand hover:underline"
+              >
+                כל השיעורים ←
+              </Link>
+            </div>
           </div>
           <div className="mt-3">
             <CalendarSchedule
-              events={shownEvents ?? []}
+              events={scheduleEvents}
               links={links}
               students={studentList}
               onLink={linkEvent}
               onUnlink={removeEvent}
               editable={ready === true}
+              mutedIds={mutedIds}
             />
           </div>
           <button
