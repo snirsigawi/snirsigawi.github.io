@@ -1,11 +1,28 @@
 /* He:Bro — lightweight app-shell service worker (hand-written, no build step).
-   - Page navigations: network-first, so deploys never leave a stale HTML shell
-     that references old JS chunks (which caused infinite loading).
+   - Page navigations: network-first with a timeout; on failure/timeout serve the
+     cached shell, so a flaky network never looks like "the site doesn't exist".
    - Other same-origin GETs: stale-while-revalidate.
    - Cross-origin (Supabase / Google): never intercepted. */
-const VERSION = "hebro-v10";
+const VERSION = "hebro-v11";
+const NAV_TIMEOUT_MS = 8000;
 
-self.addEventListener("install", () => {
+function withTimeout(promise, ms) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error("network timeout")), ms),
+    ),
+  ]);
+}
+
+self.addEventListener("install", (event) => {
+  // Pre-cache the app shell so a failed first navigation can still render.
+  event.waitUntil(
+    caches
+      .open(VERSION)
+      .then((cache) => cache.add("/"))
+      .catch(() => undefined),
+  );
   self.skipWaiting();
 });
 
@@ -30,17 +47,24 @@ self.addEventListener("fetch", (event) => {
   // design when a link leaves the viewport, and their payloads must stay fresh.
   if (url.searchParams.has("_rsc")) return;
 
-  // Navigations: network-first; fall back to cache only when offline.
+  // Navigations: network-first; fall back to cache when offline or slow.
   if (req.mode === "navigate") {
     event.respondWith(
-      fetch(req)
-        .then((res) => {
-          if (res.ok) {
-            caches.open(VERSION).then((cache) => cache.put(req, res.clone()));
-          }
+      (async () => {
+        const cache = await caches.open(VERSION);
+        try {
+          const res = await withTimeout(fetch(req), NAV_TIMEOUT_MS);
+          if (res.ok) cache.put(req, res.clone());
           return res;
-        })
-        .catch(async () => (await caches.open(VERSION)).match(req)),
+        } catch {
+          const cached =
+            (await cache.match(req)) ||
+            (await cache.match(url.pathname)) ||
+            (await cache.match("/")) ||
+            (await cache.match("/index.html"));
+          return cached || Response.error();
+        }
+      })(),
     );
     return;
   }
