@@ -11,6 +11,9 @@
 }
 
 @theme inline {
+  /* Body copy baseline: 16px (text-sm is remapped to match). */
+  --text-sm: 1rem;
+  --text-sm--line-height: 1.6;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-muted: var(--muted);
@@ -35,7 +38,41 @@
 }
 
 html {
+  font-size: 16px;
   line-height: 1.7;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slide-in-left {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.2s ease-out;
+}
+
+.animate-slide-in-left {
+  animation: slide-in-left 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-in,
+  .animate-slide-in-left {
+    animation: none;
+  }
 }
 
 body {

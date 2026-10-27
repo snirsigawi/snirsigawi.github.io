@@ -297,7 +297,7 @@ export default function DashboardPage() {
           מעקב אחרי שיעורי בית
         </h2>
         {visibleFollowups.length === 0 ? (
-          <p className="mt-3 text-sm text-muted-foreground">
+          <p className="mt-3 text-base text-muted-foreground">
             אין תלמידים שממתינים למעקב.
           </p>
         ) : (

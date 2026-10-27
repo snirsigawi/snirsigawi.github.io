@@ -18,7 +18,7 @@ export function SignOutButton() {
           router.replace("/login/");
         })
       }
-      className="rounded-md px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
+      className="w-full rounded-xl px-4 py-4 text-center text-base text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
     >
       {pending ? "…" : "התנתק"}
     </button>
