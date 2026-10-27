@@ -366,7 +366,7 @@ export default function DashboardPage() {
         <section>
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 className="font-heading text-lg font-semibold">לוח השיעורים</h2>
-            <div className="flex items-center gap-1 divide-s divide-border">
+            <div className="flex items-center gap-1">
               <button
                 type="button"
                 onClick={() => setShowPastToday((v) => !v)}
@@ -376,6 +376,7 @@ export default function DashboardPage() {
                   ? "הסתר שיעורים מהיום"
                   : "ראה עוד שיעורים מהיום"}
               </button>
+              <span aria-hidden className="h-4 w-px bg-border" />
               <Link
                 href="/calendar/"
                 className="px-2 text-sm text-brand hover:underline"
