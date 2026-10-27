@@ -3,7 +3,7 @@
      that references old JS chunks (which caused infinite loading).
    - Other same-origin GETs: stale-while-revalidate.
    - Cross-origin (Supabase / Google): never intercepted. */
-const VERSION = "hebro-v9";
+const VERSION = "hebro-v10";
 
 self.addEventListener("install", () => {
   self.skipWaiting();
@@ -25,6 +25,10 @@ self.addEventListener("fetch", (event) => {
 
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
+
+  // Let the Next.js router own its RSC / prefetch requests: they are aborted by
+  // design when a link leaves the viewport, and their payloads must stay fresh.
+  if (url.searchParams.has("_rsc")) return;
 
   // Navigations: network-first; fall back to cache only when offline.
   if (req.mode === "navigate") {
@@ -51,7 +55,12 @@ self.addEventListener("fetch", (event) => {
           if (res.ok) cache.put(req, res.clone());
           return res;
         })
-        .catch(() => cached);
+        .catch((err) => {
+          // A cancelled request (navigation/unmount) has nothing to fall back to;
+          // rethrow instead of resolving with `undefined`.
+          if (cached) return cached;
+          throw err;
+        });
       return cached || network;
     })(),
   );
