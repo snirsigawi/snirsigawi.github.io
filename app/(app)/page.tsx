@@ -68,12 +68,7 @@ export default function DashboardPage() {
       const next = await getNextLesson();
       if (!active) return;
       setNextLesson(next);
-      if (next) setPreviousLessonWrapper(next.studentId);
     })();
-
-    async function setPreviousLessonWrapper(studentId: string) {
-      setPrevLesson(await getPreviousLesson(studentId));
-    }
 
     getStudentsSummary().then((s) => active && setStudents(s));
     countStudents("archived").then((c) => active && setArchivedCount(c));
@@ -172,6 +167,53 @@ export default function DashboardPage() {
   const toastStudentName =
     toast && studentList.find((s) => s.id === toast.studentId)?.name;
 
+  // Details of the single most recent documented lesson (never an older one),
+  // shown as prep context for the upcoming lesson.
+  const nextStudentId = nextLesson?.studentId ?? nextLinkedStudent?.id ?? null;
+  useEffect(() => {
+    if (!nextStudentId) {
+      setPrevLesson(null);
+      return;
+    }
+    let active = true;
+    getPreviousLesson(nextStudentId)
+      .then((l) => active && setPrevLesson(l))
+      .catch(() => active && setPrevLesson(null));
+    return () => {
+      active = false;
+    };
+  }, [nextStudentId]);
+
+  const hasPrevDetails = Boolean(
+    prevLesson &&
+      (prevLesson.coveredTopics ||
+        prevLesson.homeworkAssigned ||
+        prevLesson.promisedNext),
+  );
+
+  const prevDetails = (
+    <>
+      {prevLesson?.coveredTopics && (
+        <div>
+          <dt className="text-muted-foreground">נושאים שכוסו:</dt>
+          <dd>{prevLesson.coveredTopics}</dd>
+        </div>
+      )}
+      {prevLesson?.homeworkAssigned && (
+        <div>
+          <dt className="text-muted-foreground">שיעורי בית שהוקצו:</dt>
+          <dd>{prevLesson.homeworkAssigned}</dd>
+        </div>
+      )}
+      {prevLesson?.promisedNext && (
+        <div>
+          <dt className="text-muted-foreground">מה הובטח לשיעור הבא:</dt>
+          <dd>{prevLesson.promisedNext}</dd>
+        </div>
+      )}
+    </>
+  );
+
   // A follow-up box is suppressed while the student has a lesson scheduled today.
   const visibleFollowups = followups.filter(
     (f) => !todayEvents.some((e) => links.get(e.id) === f.studentId),
@@ -235,24 +277,15 @@ export default function DashboardPage() {
                   <dd>{nextLesson.plannedTopics}</dd>
                 </div>
               )}
-              {prevLesson?.promisedNext && (
-                <div>
-                  <dt className="text-muted-foreground">הובטח בשיעור הקודם:</dt>
-                  <dd>{prevLesson.promisedNext}</dd>
-                </div>
-              )}
-              {prevLesson?.plannedTopics &&
-                prevLesson.coveredTopics !== null &&
-                prevLesson.coveredTopics !== prevLesson.plannedTopics && (
-                  <div>
-                    <dt className="text-muted-foreground">
-                      פער מהשיעור הקודם (מתוכנן: {prevLesson.plannedTopics} · כוסה:{" "}
-                      {prevLesson.coveredTopics || "—"}):
-                    </dt>
-                    <dd>השלימו את הנושאים שלא כוסו</dd>
-                  </div>
-                )}
             </dl>
+            {hasPrevDetails && (
+              <div className="mt-4 border-t border-border pt-3">
+                <p className="text-xs font-medium text-muted-foreground">
+                  מהשיעור הקודם
+                </p>
+                <dl className="mt-1.5 space-y-2 text-sm">{prevDetails}</dl>
+              </div>
+            )}
           </div>
         ) : nextLinkedEvent && nextLinkedStudent ? (
           <div className="mt-3 rounded-2xl border border-border bg-background p-5">
@@ -283,6 +316,14 @@ export default function DashboardPage() {
                 <dd>{nextLinkedEvent.summary}</dd>
               </div>
             </dl>
+            {hasPrevDetails && (
+              <div className="mt-4 border-t border-border pt-3">
+                <p className="text-xs font-medium text-muted-foreground">
+                  מהשיעור הקודם
+                </p>
+                <dl className="mt-1.5 space-y-2 text-sm">{prevDetails}</dl>
+              </div>
+            )}
           </div>
         ) : (
           <div className="mt-3 rounded-2xl border border-dashed border-border bg-muted/30 p-6 text-center text-sm text-muted-foreground">
