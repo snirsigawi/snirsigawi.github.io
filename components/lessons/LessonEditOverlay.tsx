@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { listLessons } from "@/lib/db";
+import { listLessons, type Lesson } from "@/lib/db";
 import type { CalendarEvent } from "@/lib/google-calendar";
-import { splitDateTime } from "@/lib/datetime";
+import { formatDateHe, splitDateTime } from "@/lib/datetime";
 import { LessonForm, type LessonInitial } from "@/components/lessons/LessonForm";
 
 /**
@@ -28,6 +28,7 @@ export function LessonEditOverlay({
         mode: "create" | "update";
         lessonId?: string;
         initial: LessonInitial;
+        previous: Lesson | null;
       }
   >({ status: "loading" });
 
@@ -45,11 +46,26 @@ export function LessonEditOverlay({
                   Math.abs(new Date(l.startsAt).getTime() - startMs) < 60_000,
               );
 
+        // The strict predecessor of this lesson — never an older one.
+        const previous =
+          startMs === null
+            ? null
+            : (rows
+                .filter(
+                  (l) => new Date(l.startsAt).getTime() < startMs - 60_000,
+                )
+                .sort(
+                  (a, b) =>
+                    new Date(b.startsAt).getTime() -
+                    new Date(a.startsAt).getTime(),
+                )[0] ?? null);
+
         if (match) {
           setState({
             status: "ready",
             mode: "update",
             lessonId: match.id,
+            previous,
             initial: {
               studentId,
               startsAt: splitDateTime(new Date(match.startsAt)),
@@ -70,6 +86,7 @@ export function LessonEditOverlay({
           setState({
             status: "ready",
             mode: "create",
+            previous,
             initial: {
               studentId,
               startsAt: event.start
@@ -146,14 +163,80 @@ export function LessonEditOverlay({
           </p>
         )}
         {state.status === "ready" && (
-          <LessonForm
-            mode={state.mode}
-            lessonId={state.lessonId}
-            initial={state.initial}
-            onDone={onClose}
-          />
+          <>
+            <PreviousLessonGlance lesson={state.previous} />
+            <LessonForm
+              mode={state.mode}
+              lessonId={state.lessonId}
+              initial={state.initial}
+              onDone={onClose}
+            />
+          </>
         )}
       </div>
     </div>
+  );
+}
+
+/** Compact read-only recap of the lesson immediately preceding this one. */
+function PreviousLessonGlance({ lesson }: { lesson: Lesson | null }) {
+  if (!lesson) return null;
+
+  const rows: { label: string; value: string }[] = [];
+  if (lesson.plannedTopics)
+    rows.push({ label: "תוכנן", value: lesson.plannedTopics });
+  if (lesson.coveredTopics)
+    rows.push({ label: "כוסה", value: lesson.coveredTopics });
+  if (lesson.usedPresentation)
+    rows.push({
+      label: "מצגת",
+      value:
+        lesson.lastSlideNo === null
+          ? "הייתה מצגת"
+          : `עד שקופית ${lesson.lastSlideNo}`,
+    });
+  if (lesson.homeworkAssigned)
+    rows.push({ label: "שיעורי בית", value: lesson.homeworkAssigned });
+  if (lesson.promisedNext)
+    rows.push({ label: "הובטח לבא", value: lesson.promisedNext });
+  if (lesson.homeworkAssigned)
+    rows.push({
+      label: "נבדקו",
+      value: lesson.homeworkChecked ? "כן" : "לא",
+    });
+  if (lesson.notes) rows.push({ label: "הערות", value: lesson.notes });
+
+  if (rows.length === 0) return null;
+
+  return (
+    <section className="mb-4 rounded-xl border border-border bg-muted/30 p-3">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h3 className="text-xs font-semibold text-muted-foreground">
+          השיעור הקודם
+        </h3>
+        <span
+          dir="ltr"
+          style={{ unicodeBidi: "isolate" }}
+          className="text-xs text-muted-foreground"
+        >
+          {formatDateHe(lesson.startsAt, {
+            weekday: "short",
+            day: "numeric",
+            month: "short",
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: false,
+          })}
+        </span>
+      </div>
+      <dl className="mt-2 grid gap-x-4 gap-y-1 text-sm sm:grid-cols-2">
+        {rows.map((r) => (
+          <div key={r.label} className="flex min-w-0 gap-1.5">
+            <dt className="shrink-0 text-muted-foreground">{r.label}:</dt>
+            <dd className="min-w-0 break-words">{r.value}</dd>
+          </div>
+        ))}
+      </dl>
+    </section>
   );
 }
