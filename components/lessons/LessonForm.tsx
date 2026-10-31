@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { createLesson, updateLesson } from "@/lib/db";
+import { createLesson, updateLesson, carryLessonContentForward } from "@/lib/db";
 import { parseLessonForm, validateLesson } from "@/lib/lessons-form";
 
 export type LessonInitial = {
@@ -17,6 +17,7 @@ export type LessonInitial = {
   promisedNext: string | null;
   homeworkChecked: boolean;
   notes: string | null;
+  cancelled: boolean;
 };
 
 export function LessonForm({
@@ -24,15 +25,19 @@ export function LessonForm({
   lessonId,
   initial,
   onDone,
+  nextEventIso,
 }: {
   mode: "create" | "update";
   lessonId?: string;
   initial: LessonInitial;
   /** When set (overlay usage), called on save/cancel instead of navigating. */
   onDone?: () => void;
+  /** Start time of the next calendar lesson of the same student, if known. */
+  nextEventIso?: string | null;
 }) {
   const router = useRouter();
   const [usedPresentation, setUsedPresentation] = useState(initial.usedPresentation);
+  const [cancelled, setCancelled] = useState(initial.cancelled);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
@@ -56,6 +61,14 @@ export function LessonForm({
       } else if (lessonId) {
         await updateLesson(lessonId, result.input);
       }
+      if (result.input.cancelled) {
+        await carryLessonContentForward(
+          initial.studentId,
+          result.input.startsAt,
+          nextEventIso ?? null,
+          result.input,
+        );
+      }
       if (onDone) onDone();
       else router.push(`/lessons/?id=${initial.studentId}`);
     } catch (err) {
@@ -71,6 +84,31 @@ export function LessonForm({
           {error}
         </p>
       )}
+
+      <div
+        className={`rounded-xl border p-3 ${
+          cancelled
+            ? "border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30"
+            : "border-border bg-muted/20"
+        }`}
+      >
+        <label className="flex items-center gap-2 text-sm font-medium">
+          <input
+            type="checkbox"
+            name="cancelled"
+            checked={cancelled}
+            onChange={(e) => setCancelled(e.target.checked)}
+            className="size-4"
+          />
+          השיעור בוטל
+        </label>
+        {cancelled && (
+          <p className="mt-1.5 ps-6 text-xs text-muted-foreground">
+            השיעור ייחשב כשיעור שהתקיים (עבר), וכל התוכן שלו יועבר אוטומטית
+            לשיעור הבא של אותו תלמיד.
+          </p>
+        )}
+      </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div>

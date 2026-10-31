@@ -104,6 +104,31 @@ function groupByDay(events: CalendarEvent[]): Day[] {
   return Array.from(map.values());
 }
 
+/** Start time (ISO) of the next calendar lesson linked to the edited student. */
+function nextEventStartIso(
+  events: CalendarEvent[],
+  links: Map<string, string>,
+  editing: { event: CalendarEvent; studentId: string },
+): string | null {
+  const currentStart = editing.event.start
+    ? new Date(editing.event.start).getTime()
+    : Date.now();
+
+  const candidates = events
+    .filter(
+      (e) =>
+        e.id !== editing.event.id &&
+        Boolean(e.start) &&
+        links.get(e.id) === editing.studentId &&
+        Date.parse(e.start ?? "") > currentStart,
+    )
+    .sort(
+      (a, b) => Date.parse(a.start ?? "") - Date.parse(b.start ?? ""),
+    );
+
+  return candidates[0]?.start ?? null;
+}
+
 export default function CalendarSchedule({
   events,
   links,
@@ -291,6 +316,7 @@ export default function CalendarSchedule({
         <LessonEditOverlay
           event={editing.event}
           studentId={editing.studentId}
+          nextEventIso={nextEventStartIso(events, links, editing)}
           onClose={() => setEditing(null)}
         />
       )}

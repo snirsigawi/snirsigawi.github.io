@@ -36,6 +36,7 @@ export function parseLessonForm(formData: FormData): ParsedLessonForm {
       promisedNext: get("promisedNext") || null,
       homeworkChecked: formData.get("homeworkChecked") === "on",
       notes: get("notes") || null,
+      cancelled: formData.get("cancelled") === "on",
     },
   };
 }

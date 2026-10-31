@@ -9,6 +9,7 @@ import {
   countStudents,
   getFollowupCandidates,
   markFollowupDone,
+  listCancelledLessonStarts,
   type FollowupCandidate,
   type NextLesson,
   type Lesson,
@@ -32,6 +33,15 @@ const REMINDER_LABELS: Record<string, string> = {
   holiday: "חג",
 };
 
+/** A calendar event whose start matches a lesson marked as cancelled. */
+function isCancelledEvent(event: CalendarEvent, cancelledStarts: string[]): boolean {
+  if (!event.start) return false;
+  const start = Date.parse(event.start);
+  return cancelledStarts.some(
+    (s) => Math.abs(Date.parse(s) - start) < 60_000,
+  );
+}
+
 export default function DashboardPage() {
   const [nextLesson, setNextLesson] = useState<NextLesson | null>(null);
   const [prevLesson, setPrevLesson] = useState<Lesson | null>(null);
@@ -47,6 +57,7 @@ export default function DashboardPage() {
   );
   const [busy, setBusy] = useState(false);
   const [showPastToday, setShowPastToday] = useState(false);
+  const [cancelledStarts, setCancelledStarts] = useState<string[]>([]);
 
   const {
     ready,
@@ -80,6 +91,10 @@ export default function DashboardPage() {
     listTodayEvents()
       .then((e) => active && setTodayEvents(e))
       .catch(() => active && setTodayEvents([]));
+    // Cancelled lessons count as past, so they must not resurface from the calendar.
+    listCancelledLessonStarts()
+      .then((s) => active && setCancelledStarts(s))
+      .catch(() => active && setCancelledStarts([]));
 
     listUpcomingEvents(5)
       .then(async (e) => {
@@ -144,7 +159,9 @@ export default function DashboardPage() {
   // Google Calendar event that is linked to a student.
   const nextLinkedEvent = nextLesson
     ? null
-    : (googleEvents?.find((e) => links.get(e.id)) ?? null);
+    : (googleEvents?.find(
+        (e) => links.get(e.id) && !isCancelledEvent(e, cancelledStarts),
+      ) ?? null);
   const nextLinkedStudent = nextLinkedEvent
     ? studentList.find((s) => s.id === links.get(nextLinkedEvent.id))
     : undefined;

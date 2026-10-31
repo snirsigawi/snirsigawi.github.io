@@ -76,6 +76,7 @@ create table lessons (
   promised_next     text,
   homework_checked  boolean not null default false,
   notes             text,
+  cancelled         boolean not null default false,
   created_at        timestamptz not null default now(),
   updated_at        timestamptz not null default now()
 );

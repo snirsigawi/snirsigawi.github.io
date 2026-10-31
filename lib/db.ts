@@ -54,6 +54,8 @@ export type Lesson = {
   promisedNext: string | null;
   homeworkChecked: boolean;
   notes: string | null;
+  /** Tutor marked this lesson as cancelled (counts as done/past). */
+  cancelled: boolean;
 };
 
 export type Holiday = { id: string; date: string; name: string };
@@ -165,6 +167,7 @@ function mapLesson(row: Record<string, unknown>): Lesson {
     promisedNext: (row.promised_next as string | null) ?? null,
     homeworkChecked: Boolean(row.homework_checked),
     notes: (row.notes as string | null) ?? null,
+    cancelled: Boolean(row.cancelled),
   };
 }
 
@@ -428,7 +431,13 @@ function lessonColumns(input: LessonInput) {
     promised_next: input.promisedNext,
     homework_checked: input.homeworkChecked,
     notes: input.notes,
+    cancelled: input.cancelled,
   };
+}
+
+/** True when the DB still lacks the `cancelled` column (migration not run yet). */
+function isMissingCancelled(message: string | undefined): boolean {
+  return Boolean(message && message.includes("cancelled"));
 }
 
 export async function listLessons(studentId: string): Promise<Lesson[]> {
@@ -461,34 +470,127 @@ export async function getLastLesson(studentId: string): Promise<Lesson | null> {
     .select("*")
     .eq("student_id", studentId)
     .order("starts_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    .limit(10);
   if (error) throw new Error(error.message);
-  return data ? mapLesson(data) : null;
+  const row = (data ?? []).find((r) => !r.cancelled);
+  return row ? mapLesson(row) : null;
 }
 
 export async function createLesson(
   studentId: string,
   input: LessonInput,
 ): Promise<string> {
-  const { data, error } = await supabase
-    .from("lessons")
-    .insert({ student_id: studentId, ...lessonColumns(input) })
-    .select("id")
-    .single();
-  if (error) throw new Error(error.message);
-  return data.id;
+  const payload = { student_id: studentId, ...lessonColumns(input) };
+  let res = await supabase.from("lessons").insert(payload).select("id").single();
+  if (res.error && isMissingCancelled(res.error.message)) {
+    const rest: Partial<typeof payload> = { ...payload };
+    delete rest.cancelled;
+    res = await supabase.from("lessons").insert(rest).select("id").single();
+  }
+  if (res.error) throw new Error(res.error.message);
+  return res.data.id as string;
 }
 
 export async function updateLesson(
   lessonId: string,
   input: LessonInput,
 ): Promise<void> {
-  const { error } = await supabase
+  const columns = lessonColumns(input);
+  let res = await supabase.from("lessons").update(columns).eq("id", lessonId);
+  if (res.error && isMissingCancelled(res.error.message)) {
+    const rest: Partial<typeof columns> = { ...columns };
+    delete rest.cancelled;
+    res = await supabase.from("lessons").update(rest).eq("id", lessonId);
+  }
+  if (res.error) throw new Error(res.error.message);
+}
+
+/**
+ * Carries a cancelled lesson's content forward to the next lesson of the same
+ * student. Uses the next existing lesson row when there is one; otherwise
+ * creates a row at the next calendar event's start time (when known).
+ * Existing content on the target is never overwritten.
+ */
+export async function carryLessonContentForward(
+  studentId: string,
+  afterIso: string,
+  nextEventIso: string | null,
+  source: LessonInput,
+): Promise<void> {
+  const content = {
+    planned_topics: source.plannedTopics,
+    covered_topics: source.coveredTopics,
+    used_presentation: source.usedPresentation,
+    last_slide_no: source.usedPresentation ? source.lastSlideNo : null,
+    homework_assigned: source.homeworkAssigned,
+    promised_next: source.promisedNext,
+    homework_checked: source.homeworkChecked,
+    notes: source.notes,
+  };
+
+  const { data, error } = await supabase
     .from("lessons")
-    .update(lessonColumns(input))
-    .eq("id", lessonId);
+    .select("*")
+    .eq("student_id", studentId)
+    .gt("starts_at", afterIso)
+    .order("starts_at", { ascending: true })
+    .limit(5);
   if (error) throw new Error(error.message);
+
+  const target = (data ?? []).find((row) => !row.cancelled);
+
+  if (target) {
+    const patch: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(content)) {
+      if (value === null || value === undefined || value === "" || value === false)
+        continue;
+      const existing = target[key];
+      if (
+        existing === null ||
+        existing === undefined ||
+        existing === "" ||
+        existing === false
+      ) {
+        patch[key] = value;
+      }
+    }
+    if (Object.keys(patch).length === 0) return;
+
+    const res = await supabase
+      .from("lessons")
+      .update(patch)
+      .eq("id", target.id as string);
+    if (res.error) throw new Error(res.error.message);
+    return;
+  }
+
+  // No lesson row yet — anchor the carried content on the next calendar event.
+  if (!nextEventIso) return;
+  const anchorMs = Date.parse(nextEventIso);
+  const alreadyAnchored = (data ?? []).some(
+    (row) => Math.abs(Date.parse(row.starts_at as string) - anchorMs) < 60_000,
+  );
+  if (alreadyAnchored) return;
+
+  const res = await supabase.from("lessons").insert({
+    student_id: studentId,
+    starts_at: nextEventIso,
+    ...content,
+  });
+  if (res.error) throw new Error(res.error.message);
+}
+
+/** Start times of lessons marked cancelled (used to skip them in the calendar). */
+export async function listCancelledLessonStarts(): Promise<string[]> {
+  const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const { data, error } = await supabase
+    .from("lessons")
+    .select("starts_at, cancelled")
+    .gte("starts_at", since);
+  if (error) return [];
+  return (data ?? [])
+    .filter((row) => row.cancelled)
+    .map((row) => row.starts_at as string);
 }
 
 export async function setHomeworkChecked(
@@ -512,19 +614,19 @@ export async function deleteLesson(lessonId: string): Promise<void> {
 /* ------------------------------------------------------------------ */
 
 export async function getNextLesson(): Promise<NextLesson | null> {
-  const { data, error } = await supabase
+  const { data: rows, error } = await supabase
     .from("lessons")
     .select("*, student:students(id, name)")
     .gt("starts_at", new Date().toISOString())
     .order("starts_at", { ascending: true })
-    .limit(1)
-    .maybeSingle();
+    .limit(20);
   if (error) throw new Error(error.message);
-  if (!data) return null;
-  const student = Array.isArray(data.student)
-    ? data.student[0]
-    : data.student;
-  return { ...mapLesson(data), student: { id: student.id, name: student.name } };
+
+  // Cancelled lessons are treated as done/past, so they never become "next".
+  const row = (rows ?? []).find((r) => !r.cancelled);
+  if (!row) return null;
+  const student = Array.isArray(row.student) ? row.student[0] : row.student;
+  return { ...mapLesson(row), student: { id: student.id, name: student.name } };
 }
 
 export async function getPreviousLesson(studentId: string): Promise<Lesson | null> {
@@ -534,10 +636,10 @@ export async function getPreviousLesson(studentId: string): Promise<Lesson | nul
     .eq("student_id", studentId)
     .lte("starts_at", new Date().toISOString())
     .order("starts_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    .limit(20);
   if (error) throw new Error(error.message);
-  return data ? mapLesson(data) : null;
+  const row = (data ?? []).find((r) => !r.cancelled);
+  return row ? mapLesson(row) : null;
 }
 
 export async function getStudentsSummary(): Promise<StudentSummary[]> {

@@ -57,6 +57,7 @@ export default function EditLessonPage() {
     promisedNext: lesson.promisedNext,
     homeworkChecked: lesson.homeworkChecked,
     notes: lesson.notes,
+    cancelled: lesson.cancelled,
   };
 
   return (

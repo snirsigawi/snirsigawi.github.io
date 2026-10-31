@@ -46,6 +46,7 @@ export default function NewLessonPage() {
     promisedNext: null,
     homeworkChecked: false,
     notes: null,
+    cancelled: false,
   };
 
   return (

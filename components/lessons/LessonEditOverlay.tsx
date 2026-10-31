@@ -15,10 +15,13 @@ export function LessonEditOverlay({
   event,
   studentId,
   onClose,
+  nextEventIso,
 }: {
   event: CalendarEvent;
   studentId: string;
   onClose: () => void;
+  /** Start of the student's next calendar lesson, used when a lesson is cancelled. */
+  nextEventIso?: string | null;
 }) {
   const [state, setState] = useState<
     | { status: "loading" }
@@ -52,7 +55,9 @@ export function LessonEditOverlay({
             ? null
             : (rows
                 .filter(
-                  (l) => new Date(l.startsAt).getTime() < startMs - 60_000,
+                  (l) =>
+                    !l.cancelled &&
+                    new Date(l.startsAt).getTime() < startMs - 60_000,
                 )
                 .sort(
                   (a, b) =>
@@ -80,6 +85,7 @@ export function LessonEditOverlay({
               promisedNext: match.promisedNext,
               homeworkChecked: match.homeworkChecked,
               notes: match.notes,
+              cancelled: match.cancelled,
             },
           });
         } else {
@@ -101,6 +107,7 @@ export function LessonEditOverlay({
               promisedNext: null,
               homeworkChecked: false,
               notes: null,
+              cancelled: false,
             },
           });
         }
@@ -169,6 +176,7 @@ export function LessonEditOverlay({
               mode={state.mode}
               lessonId={state.lessonId}
               initial={state.initial}
+              nextEventIso={nextEventIso ?? null}
               onDone={onClose}
             />
           </>
