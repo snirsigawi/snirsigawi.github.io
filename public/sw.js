@@ -3,7 +3,7 @@
      cached shell, so a flaky network never looks like "the site doesn't exist".
    - Other same-origin GETs: stale-while-revalidate.
    - Cross-origin (Supabase / Google): never intercepted. */
-const VERSION = "hebro-v11";
+const VERSION = "hebro-v12";
 const NAV_TIMEOUT_MS = 8000;
 
 function withTimeout(promise, ms) {
