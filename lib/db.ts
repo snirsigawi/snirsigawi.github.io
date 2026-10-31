@@ -440,6 +440,10 @@ function isMissingCancelled(message: string | undefined): boolean {
   return Boolean(message && message.includes("cancelled"));
 }
 
+const CANCELLED_MIGRATION_MISSING =
+  "לא ניתן לשמור ביטול: חסרה עמודת cancelled בטבלת lessons. הריצו ב-Supabase: " +
+  "alter table lessons add column if not exists cancelled boolean not null default false;";
+
 export async function listLessons(studentId: string): Promise<Lesson[]> {
   const { data, error } = await supabase
     .from("lessons")
@@ -483,6 +487,7 @@ export async function createLesson(
   const payload = { student_id: studentId, ...lessonColumns(input) };
   let res = await supabase.from("lessons").insert(payload).select("id").single();
   if (res.error && isMissingCancelled(res.error.message)) {
+    if (input.cancelled) throw new Error(CANCELLED_MIGRATION_MISSING);
     const rest: Partial<typeof payload> = { ...payload };
     delete rest.cancelled;
     res = await supabase.from("lessons").insert(rest).select("id").single();
@@ -498,6 +503,7 @@ export async function updateLesson(
   const columns = lessonColumns(input);
   let res = await supabase.from("lessons").update(columns).eq("id", lessonId);
   if (res.error && isMissingCancelled(res.error.message)) {
+    if (input.cancelled) throw new Error(CANCELLED_MIGRATION_MISSING);
     const rest: Partial<typeof columns> = { ...columns };
     delete rest.cancelled;
     res = await supabase.from("lessons").update(rest).eq("id", lessonId);

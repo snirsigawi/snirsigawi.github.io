@@ -3,12 +3,14 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { listEventsInDays, type CalendarEvent } from "@/lib/google-calendar";
+import { listCancelledLessonStarts } from "@/lib/db";
 import CalendarSchedule from "@/components/CalendarSchedule";
 import LinkToast from "@/components/LinkToast";
 import { useCalendarLinking } from "@/components/useCalendarLinking";
 
 export default function CalendarMonthPage() {
   const [events, setEvents] = useState<CalendarEvent[] | null>(null);
+  const [cancelledStarts, setCancelledStarts] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -41,6 +43,30 @@ export default function CalendarMonthPage() {
       active = false;
     };
   }, [applyPrediction]);
+
+  // Cancelled lessons count as done: mark their events instead of showing them
+  // as upcoming lessons.
+  useEffect(() => {
+    let active = true;
+    listCancelledLessonStarts()
+      .then((s) => active && setCancelledStarts(s))
+      .catch(() => active && setCancelledStarts([]));
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const cancelledEventIds = new Set(
+    (events ?? [])
+      .filter((e) => {
+        if (!e.start) return false;
+        const start = Date.parse(e.start);
+        return cancelledStarts.some(
+          (s) => Math.abs(Date.parse(s) - start) < 60_000,
+        );
+      })
+      .map((e) => e.id),
+  );
 
   async function handlePredict() {
     if (!toast || toast.kind !== "linked") return;
@@ -136,6 +162,7 @@ notify pgrst, 'reload schema';`}
           onLink={linkEvent}
           onUnlink={removeEvent}
           editable={ready === true}
+          cancelledIds={cancelledEventIds}
         />
       )}
 

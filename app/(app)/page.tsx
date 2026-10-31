@@ -154,6 +154,12 @@ export default function DashboardPage() {
   const scheduleEvents = [...pastToday, ...(shownEvents ?? [])].sort(
     (a, b) => Date.parse(a.start ?? "") - Date.parse(b.start ?? ""),
   );
+  // Cancelled lessons are paid/done: they stay visible but never look upcoming.
+  const cancelledEventIds = new Set(
+    scheduleEvents
+      .filter((e) => isCancelledEvent(e, cancelledStarts))
+      .map((e) => e.id),
+  );
 
   // Next lesson: a DB-planned lesson wins; otherwise fall back to the next
   // Google Calendar event that is linked to a student.
@@ -452,6 +458,7 @@ export default function DashboardPage() {
               onUnlink={removeEvent}
               editable={ready === true}
               mutedIds={mutedIds}
+              cancelledIds={cancelledEventIds}
             />
           </div>
           <button

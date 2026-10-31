@@ -35,7 +35,7 @@ export function LessonCard({ lesson }: { lesson: Lesson }) {
       />
 
       <div className="flex flex-wrap items-start justify-between gap-2">
-        <div>
+        <div className="flex flex-wrap items-center gap-2">
           <span
             dir="ltr"
             style={{ unicodeBidi: "isolate" }}
@@ -43,6 +43,11 @@ export function LessonCard({ lesson }: { lesson: Lesson }) {
           >
             {fmt(lesson.startsAt)}
           </span>
+          {lesson.cancelled && (
+            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800 dark:bg-amber-950 dark:text-amber-200">
+              בוטל · נחשב כשיעור שהתקיים
+            </span>
+          )}
           {lesson.endsAt && (
             <span
               dir="ltr"

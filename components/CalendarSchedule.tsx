@@ -32,6 +32,8 @@ export type CalendarScheduleProps = {
   onRemoveEvent?: (event: CalendarEvent) => void;
   /** Events rendered dimmed (already passed) — still fully interactive. */
   mutedIds?: Set<string>;
+  /** Lessons the tutor marked as cancelled: they count as done/past. */
+  cancelledIds?: Set<string>;
 };
 
 const dateKeyFmt = new Intl.DateTimeFormat("en-CA", {
@@ -139,6 +141,7 @@ export default function CalendarSchedule({
   removable = false,
   onRemoveEvent,
   mutedIds,
+  cancelledIds,
 }: CalendarScheduleProps) {
   const days = groupByDay(events);
   const [openPicker, setOpenPicker] = useState<string | null>(null);
@@ -183,7 +186,8 @@ export default function CalendarSchedule({
             {day.events.map(({ event, timeLabel, allDay }) => {
               const linkedStudentId = links.get(event.id);
               const isOpen = openPicker === event.id;
-              const isMuted = mutedIds?.has(event.id) ?? false;
+              const isCancelled = cancelledIds?.has(event.id) ?? false;
+              const isMuted = (mutedIds?.has(event.id) ?? false) || isCancelled;
 
               return (
                 <div
@@ -209,9 +213,16 @@ export default function CalendarSchedule({
 
                   {/* Event title + link */}
                   <div className="min-w-0 flex-1">
-                    <p className="pt-1 text-sm font-medium leading-tight">
-                      {event.summary}
-                    </p>
+                    <div className="flex flex-wrap items-center gap-2 pt-1">
+                      <p className="text-sm font-medium leading-tight">
+                        {event.summary}
+                      </p>
+                      {isCancelled && (
+                        <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800 dark:bg-amber-950 dark:text-amber-200">
+                          בוטל · נחשב כשיעור שהתקיים
+                        </span>
+                      )}
+                    </div>
 
                     {editable && (
                       <div className="mt-2">
