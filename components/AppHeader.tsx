@@ -41,6 +41,19 @@ export function AppHeader() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname]);
 
+  // The drawer only exists below the tablet breakpoint — close it if the
+  // viewport grows into the top-bar layout while it is open.
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 768px)");
+    const onChange = () => {
+      if (!mq.matches) return;
+      setOpen(false);
+      setClosing(false);
+    };
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
+
   // Escape closes; lock page scroll while the drawer is open.
   useEffect(() => {
     if (!open) return;
@@ -64,26 +77,46 @@ export function AppHeader() {
             He:Bro
           </Link>
 
-          <button
-            type="button"
-            onClick={() => setOpen(true)}
-            aria-label="פתיחת תפריט"
-            aria-expanded={open}
-            className="rounded-md p-2 text-foreground transition-colors hover:bg-muted"
-          >
-            <svg
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              aria-hidden
+          {/* Desktop / tablet: inline navigation, no drawer. */}
+          <nav className="hidden items-center gap-1 md:flex">
+            {navItems.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className="rounded-lg px-3 py-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              >
+                {item.label}
+              </Link>
+            ))}
+          </nav>
+
+          <div className="flex items-center gap-2">
+            <div className="hidden md:block">
+              <SignOutButton compact />
+            </div>
+
+            {/* Mobile only: burger opens the side drawer. */}
+            <button
+              type="button"
+              onClick={() => setOpen(true)}
+              aria-label="פתיחת תפריט"
+              aria-expanded={open}
+              className="rounded-md p-2 text-foreground transition-colors hover:bg-muted md:hidden"
             >
-              <path d="M3 6h18M3 12h18M3 18h18" />
-            </svg>
-          </button>
+              <svg
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                aria-hidden
+              >
+                <path d="M3 6h18M3 12h18M3 18h18" />
+              </svg>
+            </button>
+          </div>
         </div>
       </header>
 
