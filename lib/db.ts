@@ -474,20 +474,68 @@ export async function getLastLesson(studentId: string): Promise<Lesson | null> {
     .select("*")
     .eq("student_id", studentId)
     .order("starts_at", { ascending: false })
-    .limit(10);
+    .limit(1);
   if (error) throw new Error(error.message);
-  const row = (data ?? []).find((r) => !r.cancelled);
+  // Cancelled lessons count as done, so their content is the most recent state.
+  const row = (data ?? [])[0];
   return row ? mapLesson(row) : null;
+}
+
+/**
+ * Content of the student's immediately preceding lesson, when that lesson was
+ * cancelled. A cancelled lesson is paid for, so retrieving its content here is
+ * what makes it "carry over" to a lesson created later — even when no future
+ * lesson existed at cancellation time.
+ */
+async function contentOfPriorCancelledLesson(
+  studentId: string,
+  beforeIso: string,
+): Promise<LessonInput | null> {
+  const { data, error } = await supabase
+    .from("lessons")
+    .select("*")
+    .eq("student_id", studentId)
+    .lt("starts_at", beforeIso)
+    .order("starts_at", { ascending: false })
+    .limit(1);
+  if (error) return null;
+
+  const row = (data ?? [])[0];
+  if (!row || !row.cancelled) return null;
+  return mapLesson(row);
+}
+
+/** Fills the new lesson's empty fields from a source; never overwrites. */
+function fillEmptyFrom(input: LessonInput, source: LessonInput): LessonInput {
+  const merged = { ...input };
+  if (!merged.plannedTopics && source.plannedTopics) merged.plannedTopics = source.plannedTopics;
+  if (!merged.coveredTopics && source.coveredTopics) merged.coveredTopics = source.coveredTopics;
+  if (!merged.homeworkAssigned && source.homeworkAssigned) merged.homeworkAssigned = source.homeworkAssigned;
+  if (!merged.promisedNext && source.promisedNext) merged.promisedNext = source.promisedNext;
+  if (!merged.notes && source.notes) merged.notes = source.notes;
+  if (!merged.usedPresentation && source.usedPresentation) {
+    merged.usedPresentation = true;
+    if (merged.lastSlideNo === null && source.lastSlideNo !== null) {
+      merged.lastSlideNo = source.lastSlideNo;
+    }
+  }
+  if (!merged.homeworkChecked && source.homeworkChecked) merged.homeworkChecked = true;
+  return merged;
 }
 
 export async function createLesson(
   studentId: string,
   input: LessonInput,
 ): Promise<string> {
-  const payload = { student_id: studentId, ...lessonColumns(input) };
+  // A lesson created right after a cancelled one inherits its content, so the
+  // cancellation survives even if the next lesson is only added later.
+  const prior = await contentOfPriorCancelledLesson(studentId, input.startsAt);
+  const lesson = prior ? fillEmptyFrom(input, prior) : input;
+
+  const payload = { student_id: studentId, ...lessonColumns(lesson) };
   let res = await supabase.from("lessons").insert(payload).select("id").single();
   if (res.error && isMissingCancelled(res.error.message)) {
-    if (input.cancelled) throw new Error(CANCELLED_MIGRATION_MISSING);
+    if (lesson.cancelled) throw new Error(CANCELLED_MIGRATION_MISSING);
     const rest: Partial<typeof payload> = { ...payload };
     delete rest.cancelled;
     res = await supabase.from("lessons").insert(rest).select("id").single();
