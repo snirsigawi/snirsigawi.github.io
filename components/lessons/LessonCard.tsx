@@ -45,7 +45,7 @@ export function LessonCard({ lesson }: { lesson: Lesson }) {
           </span>
           {lesson.cancelled && (
             <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800 dark:bg-amber-950 dark:text-amber-200">
-              בוטל · נחשב כשיעור שהתקיים
+              השיעור בוטל
             </span>
           )}
           {lesson.endsAt && (
