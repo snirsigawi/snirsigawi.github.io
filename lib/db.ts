@@ -634,17 +634,14 @@ export async function carryLessonContentForward(
   if (res.error) throw new Error(res.error.message);
 }
 
-/** Start times of lessons marked cancelled (used to skip them in the calendar). */
+/** Start times of every lesson marked cancelled (used to skip/dim them in the calendar). */
 export async function listCancelledLessonStarts(): Promise<string[]> {
-  const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
   const { data, error } = await supabase
     .from("lessons")
-    .select("starts_at, cancelled")
-    .gte("starts_at", since);
+    .select("starts_at")
+    .eq("cancelled", true);
   if (error) return [];
-  return (data ?? [])
-    .filter((row) => row.cancelled)
-    .map((row) => row.starts_at as string);
+  return (data ?? []).map((row) => row.starts_at as string);
 }
 
 export async function setHomeworkChecked(
