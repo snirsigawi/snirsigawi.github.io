@@ -119,7 +119,7 @@ export default function DashboardPage() {
     }
   }
 
-  /** Expand: show every lesson in the coming 3 days instead of the next 5. */
+  /** Expand: keep going 3 days past the last lesson currently shown. */
   async function toggleExpandSchedule() {
     if (expanded) {
       setExpanded(false);
@@ -128,7 +128,18 @@ export default function DashboardPage() {
     setExpanded(true);
     if (expandedEvents !== null) return;
     try {
-      const ev = await listEventsInDays(3, 25);
+      // "3 extra days" means 3 days past the last lesson already on screen,
+      // so expanding always reveals the following lessons (e.g. a date a few
+      // days out) instead of re-fetching the same short window.
+      const startMs = Date.now();
+      const lastVisible = Math.max(
+        startMs,
+        ...(googleEvents ?? []).map(
+          (e) => Date.parse(e.start ?? "") || startMs,
+        ),
+      );
+      const days = Math.ceil((lastVisible - startMs) / 86_400_000) + 3;
+      const ev = await listEventsInDays(days, 50);
       setExpandedEvents(ev);
       await applyPrediction(ev);
     } catch {
