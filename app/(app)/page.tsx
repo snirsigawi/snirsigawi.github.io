@@ -25,6 +25,7 @@ import {
 import { formatDateHe } from "@/lib/datetime";
 import CalendarSchedule from "@/components/CalendarSchedule";
 import LinkToast from "@/components/LinkToast";
+import { LessonEditOverlay } from "@/components/lessons/LessonEditOverlay";
 import { useCalendarLinking } from "@/components/useCalendarLinking";
 
 const REMINDER_LABELS: Record<string, string> = {
@@ -32,6 +33,28 @@ const REMINDER_LABELS: Record<string, string> = {
   specialDate: "תאריך מיוחד",
   holiday: "חג",
 };
+
+/** Start of the student's following lesson, used when cancelling a lesson. */
+function nextStartForStudent(
+  events: CalendarEvent[] | null,
+  links: Map<string, string>,
+  event: CalendarEvent,
+  studentId: string,
+): string | null {
+  const currentMs = event.start ? Date.parse(event.start) : Date.now();
+
+  return (
+    (events ?? [])
+      .filter(
+        (e) =>
+          e.id !== event.id &&
+          links.get(e.id) === studentId &&
+          Date.parse(e.start ?? "") > currentMs,
+      )
+      .sort((a, b) => Date.parse(a.start ?? "") - Date.parse(b.start ?? ""))[0]
+      ?.start ?? null
+  );
+}
 
 /** A calendar event whose start matches a lesson marked as cancelled. */
 function isCancelledEvent(event: CalendarEvent, cancelledStarts: string[]): boolean {
@@ -57,6 +80,7 @@ export default function DashboardPage() {
   );
   const [busy, setBusy] = useState(false);
   const [showPastToday, setShowPastToday] = useState(false);
+  const [editingNext, setEditingNext] = useState(false);
   const [cancelledStarts, setCancelledStarts] = useState<string[]>([]);
 
   const {
@@ -353,12 +377,13 @@ export default function DashboardPage() {
                   </span>
                 </p>
               </div>
-              <Link
-                href={`/lessons/new/?id=${nextLinkedStudent.id}`}
+              <button
+                type="button"
+                onClick={() => setEditingNext(true)}
                 className="rounded-lg border border-border px-2 py-1.5 text-xs font-medium transition-colors hover:bg-muted"
               >
                 עריכת שיעור
-              </Link>
+              </button>
             </div>
             <dl className="mt-4 space-y-2 text-sm">
               <div>
@@ -506,6 +531,22 @@ export default function DashboardPage() {
           onUndo={undoLast}
           onPredict={handlePredict}
           onDecline={dismissToast}
+        />
+      )}
+
+      {/* Editing the next lesson straight from this card — same flow as the
+          schedule, so it updates an existing row instead of creating one. */}
+      {editingNext && nextLinkedEvent && nextLinkedStudent && (
+        <LessonEditOverlay
+          event={nextLinkedEvent}
+          studentId={nextLinkedStudent.id}
+          nextEventIso={nextStartForStudent(
+            shownEvents,
+            links,
+            nextLinkedEvent,
+            nextLinkedStudent.id,
+          )}
+          onClose={() => setEditingNext(false)}
         />
       )}
 
