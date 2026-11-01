@@ -161,13 +161,29 @@ export default function DashboardPage() {
       .map((e) => e.id),
   );
 
-  // Next lesson: a DB-planned lesson wins; otherwise fall back to the next
-  // Google Calendar event that is linked to a student.
-  const nextLinkedEvent = nextLesson
-    ? null
-    : (googleEvents?.find(
-        (e) => links.get(e.id) && !isCancelledEvent(e, cancelledStarts),
-      ) ?? null);
+  // Next lesson = the earliest of: a DB-planned future lesson, or the next
+  // linked Google Calendar event (excluding cancelled ones). We never let a
+  // DB row "win" over an earlier calendar event that's actually happening.
+  const nextLinkedGoogleEvent = googleEvents?.find(
+    (e) => links.get(e.id) && !isCancelledEvent(e, cancelledStarts),
+  ) ?? null;
+
+  const calMs = nextLinkedGoogleEvent?.start
+    ? Date.parse(nextLinkedGoogleEvent.start)
+    : Infinity;
+  let effectiveNextLesson: NextLesson | null = null;
+  let nextLinkedEvent: CalendarEvent | null = null;
+  if (nextLesson) {
+    const dbMs = Date.parse(nextLesson.startsAt);
+    if (dbMs <= calMs) {
+      effectiveNextLesson = nextLesson;
+    } else if (nextLinkedGoogleEvent) {
+      nextLinkedEvent = nextLinkedGoogleEvent;
+    }
+  } else if (nextLinkedGoogleEvent) {
+    nextLinkedEvent = nextLinkedGoogleEvent;
+  }
+
   const nextLinkedStudent = nextLinkedEvent
     ? studentList.find((s) => s.id === links.get(nextLinkedEvent.id))
     : undefined;
@@ -262,31 +278,31 @@ export default function DashboardPage() {
       {/* Next lesson prep card */}
       <section>
         <h2 className="font-heading text-lg font-semibold">השיעור הבא</h2>
-        {nextLesson ? (
+        {effectiveNextLesson ? (
           <div className="mt-3 rounded-2xl border border-border bg-background p-5">
             <div className="flex flex-wrap items-start justify-between gap-2">
               <div>
                 <Link
-                  href={`/students/view/?id=${nextLesson.studentId}`}
+                  href={`/students/view/?id=${effectiveNextLesson.studentId}`}
                   className="font-heading text-lg font-semibold text-brand hover:underline"
                 >
-                  {nextLesson.student.name}
+                  {effectiveNextLesson.student.name}
                 </Link>
                 <p className="mt-1 text-sm text-muted-foreground">
                   <span dir="ltr" style={{ unicodeBidi: "isolate" }}>
-                    {formatDateHe(nextLesson.startsAt)}
+                    {formatDateHe(effectiveNextLesson.startsAt)}
                   </span>
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">
                 <Link
-                  href={`/lessons/edit/?id=${nextLesson.studentId}&lesson=${nextLesson.id}`}
+                  href={`/lessons/edit/?id=${effectiveNextLesson.studentId}&lesson=${effectiveNextLesson.id}`}
                   className="rounded-lg border border-border px-2 py-1.5 text-xs font-medium transition-colors hover:bg-muted"
                 >
                   עריכה
                 </Link>
                 <Link
-                  href={`/lessons/new/?id=${nextLesson.studentId}`}
+                  href={`/lessons/new/?id=${effectiveNextLesson.studentId}`}
                   className="rounded-lg border border-border px-2 py-1.5 text-xs font-medium transition-colors hover:bg-muted"
                 >
                   + שיעור חדש לתלמיד
@@ -294,10 +310,10 @@ export default function DashboardPage() {
               </div>
             </div>
             <dl className="mt-4 space-y-2 text-sm">
-              {nextLesson.plannedTopics && (
+              {effectiveNextLesson.plannedTopics && (
                 <div>
                   <dt className="text-muted-foreground">מתוכנן לשיעור:</dt>
-                  <dd>{nextLesson.plannedTopics}</dd>
+                  <dd>{effectiveNextLesson.plannedTopics}</dd>
                 </div>
               )}
             </dl>
