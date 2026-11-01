@@ -856,6 +856,34 @@ export async function bulkUnlinkCalendarEvents(
   if (error) throw new Error(error.message);
 }
 
+/**
+ * Events the tutor explicitly detached. They must never be re-linked by series
+ * prediction, otherwise the student's future lessons keep coming back.
+ */
+export async function getCalendarLinkExclusions(): Promise<Set<string>> {
+  const { data, error } = await supabase
+    .from("calendar_link_exclusions")
+    .select("google_event_id");
+  // Table may not exist yet — degrade gracefully instead of disabling linking.
+  if (error) return new Set();
+  return new Set((data ?? []).map((row) => row.google_event_id as string));
+}
+
+/** Remember that these events were detached on purpose. */
+export async function excludeCalendarEvents(
+  googleEventIds: string[],
+): Promise<void> {
+  if (googleEventIds.length === 0) return;
+  const { error } = await supabase
+    .from("calendar_link_exclusions")
+    .upsert(
+      googleEventIds.map((id) => ({ google_event_id: id })),
+      { onConflict: "google_event_id" },
+    );
+  // Best effort: detaching still works before the migration is run.
+  if (error) return;
+}
+
 /** Link many events to students in one call. */
 export async function bulkLinkCalendarEvents(
   entries: { googleEventId: string; studentId: string }[],

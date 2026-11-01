@@ -128,16 +128,25 @@ create table if not exists calendar_series_links (
   student_id uuid not null references students(id) on delete cascade,
   created_at timestamptz not null default now()
 );
+create table if not exists calendar_link_exclusions (
+  google_event_id text primary key,
+  created_at timestamptz not null default now()
+);
 alter table calendar_links enable row level security;
 alter table calendar_series_links enable row level security;
+alter table calendar_link_exclusions enable row level security;
 drop policy if exists "authenticated full access" on calendar_links;
 drop policy if exists "authenticated full access" on calendar_series_links;
+drop policy if exists "authenticated full access" on calendar_link_exclusions;
 create policy "authenticated full access" on calendar_links
   for all to authenticated using (true) with check (true);
 create policy "authenticated full access" on calendar_series_links
   for all to authenticated using (true) with check (true);
+create policy "authenticated full access" on calendar_link_exclusions
+  for all to authenticated using (true) with check (true);
 grant all on calendar_links to authenticated;
 grant all on calendar_series_links to authenticated;
+grant all on calendar_link_exclusions to authenticated;
 notify pgrst, 'reload schema';`}
           </pre>
           <p className="mt-2">לאחר ההרצה, רעננו את הדף — הכפתורים יופיעו.</p>

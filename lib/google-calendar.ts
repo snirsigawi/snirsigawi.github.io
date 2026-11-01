@@ -89,13 +89,15 @@ export async function listTodayEvents(): Promise<CalendarEvent[]> {
 }
 
 /**
- * Future (and current) instances of a recurring series, starting now.
- * Used when the user asks to "predict" the rest of a student's lessons.
+ * Future instances of a recurring series, up to a full year ahead.
+ * Unlike a plain 50-event window, this reaches lessons that are far in the
+ * future (or not yet created) so they can be linked to their student.
  */
 export async function listSeriesEvents(
   recurringEventId: string,
-  max = 50,
+  max = 250,
 ): Promise<CalendarEvent[]> {
-  const all = await listUpcomingEvents(Math.max(max, 10));
+  const timeMax = new Date(Date.now() + 365 * 86_400_000);
+  const all = await listUpcomingEvents(max, timeMax);
   return all.filter((e) => e.recurringEventId === recurringEventId);
 }

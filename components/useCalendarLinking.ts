@@ -4,6 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   bulkLinkCalendarEvents,
   bulkUnlinkCalendarEvents,
+  excludeCalendarEvents,
+  getCalendarLinkExclusions,
   getCalendarLinks,
   getSeriesLinks,
   linkCalendarEvent,
@@ -54,6 +56,7 @@ const AUTO_LINK_MIN = 3;
 function summaryAutoLinks(
   events: CalendarEvent[],
   links: Map<string, string>,
+  excluded: Set<string>,
 ): { googleEventId: string; studentId: string }[] {
   // Count linked events per (title, student).
   const counts = new Map<string, Map<string, number>>();
@@ -71,6 +74,7 @@ function summaryAutoLinks(
   const out: { googleEventId: string; studentId: string }[] = [];
   for (const e of events) {
     if (links.has(e.id)) continue;
+    if (excluded.has(e.id)) continue;
     const m = counts.get(e.summary);
     if (!m) continue;
     let best: { sid: string; n: number } | null = null;
@@ -90,14 +94,17 @@ export function useCalendarLinking() {
   const [ready, setReady] = useState<boolean | null>(null);
   const [links, setLinks] = useState<Map<string, string>>(new Map());
   const [seriesLinks, setSeriesLinks] = useState<Map<string, string>>(new Map());
+  const [exclusions, setExclusions] = useState<Set<string>>(new Set());
   const [students, setStudents] = useState<{ id: string; name: string }[]>([]);
   const [toast, setToast] = useState<LinkToastState | null>(null);
 
   // Refs so async callbacks always see fresh maps without re-binding.
   const linksRef = useRef(links);
   const seriesRef = useRef(seriesLinks);
+  const exclusionsRef = useRef(exclusions);
   linksRef.current = links;
   seriesRef.current = seriesLinks;
+  exclusionsRef.current = exclusions;
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** Last event list seen by applyPrediction — basis for title auto-linking. */
   const eventsRef = useRef<CalendarEvent[]>([]);
@@ -125,11 +132,12 @@ export function useCalendarLinking() {
       })
       .catch(() => {});
 
-    Promise.all([getCalendarLinks(), getSeriesLinks()])
-      .then(([lk, sl]) => {
+    Promise.all([getCalendarLinks(), getSeriesLinks(), getCalendarLinkExclusions()])
+      .then(([lk, sl, ex]) => {
         if (!active) return;
         setLinks(lk);
         setSeriesLinks(sl);
+        setExclusions(ex);
         setReady(true);
       })
       .catch(() => {
@@ -156,6 +164,7 @@ export function useCalendarLinking() {
 
       for (const e of events) {
         if (next.has(e.id)) continue;
+        if (exclusionsRef.current.has(e.id)) continue;
         if (e.recurringEventId) {
           const studentId = series.get(e.recurringEventId);
           if (studentId) {
@@ -166,7 +175,7 @@ export function useCalendarLinking() {
       }
 
       // 3+ linked lessons with one title → the rest of that title is theirs.
-      toInsert.push(...summaryAutoLinks(events, next));
+      toInsert.push(...summaryAutoLinks(events, next, exclusionsRef.current));
 
       if (toInsert.length === 0) return current;
 
@@ -189,7 +198,7 @@ export function useCalendarLinking() {
       setLinks(next);
 
       // 3rd lesson with this title for the student → auto-link the rest.
-      const extra = summaryAutoLinks(eventsRef.current, next);
+      const extra = summaryAutoLinks(eventsRef.current, next, exclusionsRef.current);
       if (extra.length > 0) {
         bulkLinkCalendarEvents(extra).catch(() => {});
         setLinks(new Map(next));
@@ -288,24 +297,18 @@ export function useCalendarLinking() {
   );
 
   /**
-   * Remove one event link. If it belongs to a predicted series the series
-   * prediction is dropped too, so the lesson never silently reappears.
-   * Already-persisted other instances are untouched.
+   * Detach one event. The recurring-series link stays intact so the student's
+   * other (including not-yet-created) lessons keep their student; the detached
+   * instance is remembered as an exclusion so prediction never brings it back.
    */
   const removeEvent = useCallback(
     async (event: CalendarEvent): Promise<void> => {
-      await unlinkCalendarEvent(event.id);
-      const seriesId = event.recurringEventId;
+      await Promise.all([
+        unlinkCalendarEvent(event.id),
+        excludeCalendarEvents([event.id]),
+      ]);
 
-      if (seriesId && seriesRef.current.get(seriesId)) {
-        await unlinkSeries(seriesId);
-        setSeriesLinks((prev) => {
-          const next = new Map(prev);
-          next.delete(seriesId);
-          return next;
-        });
-      }
-
+      setExclusions((prev) => new Set(prev).add(event.id));
       setLinks((prev) => {
         const next = new Map(prev);
         next.delete(event.id);
@@ -315,32 +318,29 @@ export function useCalendarLinking() {
     [],
   );
 
-  /** Unlink every listed future lesson of one student (+ its series links). */
+  /** Detach every listed future lesson of one student, keeping the series. */
   const removeFutureForStudent = useCallback(
     async (studentId: string, events: CalendarEvent[]): Promise<void> => {
       const ids: string[] = [];
-      const seriesIds = new Set<string>();
 
       for (const e of events) {
         if (linksRef.current.get(e.id) !== studentId) continue;
         ids.push(e.id);
-        if (e.recurringEventId && seriesRef.current.has(e.recurringEventId))
-          seriesIds.add(e.recurringEventId);
       }
 
       await Promise.all([
         bulkUnlinkCalendarEvents(ids),
-        ...Array.from(seriesIds).map((s) => unlinkSeries(s)),
+        excludeCalendarEvents(ids),
       ]);
 
+      setExclusions((prev) => {
+        const next = new Set(prev);
+        for (const id of ids) next.add(id);
+        return next;
+      });
       setLinks((prev) => {
         const next = new Map(prev);
         for (const id of ids) next.delete(id);
-        return next;
-      });
-      setSeriesLinks((prev) => {
-        const next = new Map(prev);
-        for (const s of seriesIds) next.delete(s);
         return next;
       });
     },
