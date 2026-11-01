@@ -357,7 +357,7 @@ export default function DashboardPage() {
                 href={`/lessons/new/?id=${nextLinkedStudent.id}`}
                 className="rounded-lg border border-border px-2 py-1.5 text-xs font-medium transition-colors hover:bg-muted"
               >
-                + שיעור חדש לתלמיד
+                עריכת שיעור
               </Link>
             </div>
             <dl className="mt-4 space-y-2 text-sm">
