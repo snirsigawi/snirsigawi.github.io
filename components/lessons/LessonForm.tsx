@@ -69,8 +69,14 @@ export function LessonForm({
           result.input,
         );
       }
-      if (onDone) onDone();
-      else router.push(`/lessons/?id=${initial.studentId}`);
+      // The page that hosts the form (schedule overlay, archive, next-lesson
+      // card) shows data computed before the save, so always re-load it.
+      if (onDone) {
+        onDone();
+        window.location.reload();
+      } else {
+        window.location.assign(`/lessons/?id=${initial.studentId}`);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "שמירה נכשלה");
       setPending(false);
