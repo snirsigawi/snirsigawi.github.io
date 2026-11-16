@@ -242,13 +242,14 @@ export default function DashboardPage() {
     toast && studentList.find((s) => s.id === toast.studentId)?.name;
 
   // Details of the single most recent documented lesson (never an older one),
-  // shown as prep context for the upcoming lesson.
-  const nextStudentId = nextLesson?.studentId ?? nextLinkedStudent?.id ?? null;
+  // shown as prep context for the upcoming lesson. Must follow the student the
+  // rendered card actually belongs to, otherwise another student's plan leaks in.
+  const nextStudentId =
+    effectiveNextLesson?.studentId ?? nextLinkedStudent?.id ?? null;
   useEffect(() => {
-    if (!nextStudentId) {
-      setPrevLesson(null);
-      return;
-    }
+    // Clear immediately so the previous student's content never flashes.
+    setPrevLesson(null);
+    if (!nextStudentId) return;
     let active = true;
     getPreviousLesson(nextStudentId)
       .then((l) => active && setPrevLesson(l))
