@@ -5,6 +5,7 @@ import Link from "next/link";
 import {
   getNextLesson,
   getPreviousLesson,
+  getLessonAt,
   getStudentsSummary,
   countStudents,
   getFollowupCandidates,
@@ -67,6 +68,7 @@ function isCancelledEvent(event: CalendarEvent, cancelledStarts: string[]): bool
 
 export default function DashboardPage() {
   const [nextLesson, setNextLesson] = useState<NextLesson | null>(null);
+  const [nextEventLesson, setNextEventLesson] = useState<Lesson | null>(null);
   const [prevLesson, setPrevLesson] = useState<Lesson | null>(null);
   const [students, setStudents] = useState<StudentSummary[]>([]);
   const [archivedCount, setArchivedCount] = useState(0);
@@ -242,22 +244,33 @@ export default function DashboardPage() {
     toast && studentList.find((s) => s.id === toast.studentId)?.name;
 
   // Details of the single most recent documented lesson (never an older one),
-  // shown as prep context for the upcoming lesson. Must follow the student the
-  // rendered card actually belongs to, otherwise another student's plan leaks in.
+  // shown as prep context for the upcoming lesson. Must follow the student and
+  // start time of the rendered card, otherwise another student's plan leaks in.
   const nextStudentId =
     effectiveNextLesson?.studentId ?? nextLinkedStudent?.id ?? null;
+  const nextLessonStart =
+    effectiveNextLesson?.startsAt ?? nextLinkedEvent?.start ?? null;
+  const nextCalendarEventId = nextLinkedEvent?.id ?? null;
   useEffect(() => {
-    // Clear immediately so the previous student's content never flashes.
+    // Clear immediately so stale content never flashes on a different lesson.
     setPrevLesson(null);
-    if (!nextStudentId) return;
+    setNextEventLesson(null);
+    if (!nextStudentId || !nextLessonStart) return;
     let active = true;
-    getPreviousLesson(nextStudentId)
+    getPreviousLesson(nextStudentId, nextLessonStart)
       .then((l) => active && setPrevLesson(l))
       .catch(() => active && setPrevLesson(null));
+    // A calendar card can also have a saved DB lesson. Read that exact row so
+    // editing the event's lesson immediately restores its planned content.
+    if (nextCalendarEventId) {
+      getLessonAt(nextStudentId, nextLessonStart)
+        .then((l) => active && setNextEventLesson(l))
+        .catch(() => active && setNextEventLesson(null));
+    }
     return () => {
       active = false;
     };
-  }, [nextStudentId]);
+  }, [nextStudentId, nextLessonStart, nextCalendarEventId]);
 
   const hasPrevDetails = Boolean(
     prevLesson &&
@@ -284,6 +297,38 @@ export default function DashboardPage() {
         <div>
           <dt className="text-muted-foreground">מה הובטח לשיעור הבא:</dt>
           <dd>{prevLesson.promisedNext}</dd>
+        </div>
+      )}
+    </>
+  );
+
+  // The displayed lesson may come from the DB directly or be matched to its
+  // linked calendar event. In both cases, show every saved content field.
+  const displayedLesson = effectiveNextLesson ?? nextEventLesson;
+  const currentDetails = (
+    <>
+      {displayedLesson?.plannedTopics && (
+        <div>
+          <dt className="text-muted-foreground">מתוכנן לשיעור:</dt>
+          <dd>{displayedLesson.plannedTopics}</dd>
+        </div>
+      )}
+      {displayedLesson?.coveredTopics && (
+        <div>
+          <dt className="text-muted-foreground">נושאים שכוסו:</dt>
+          <dd>{displayedLesson.coveredTopics}</dd>
+        </div>
+      )}
+      {displayedLesson?.homeworkAssigned && (
+        <div>
+          <dt className="text-muted-foreground">שיעורי בית שהוקצו:</dt>
+          <dd>{displayedLesson.homeworkAssigned}</dd>
+        </div>
+      )}
+      {displayedLesson?.promisedNext && (
+        <div>
+          <dt className="text-muted-foreground">מה הובטח לשיעור הבא:</dt>
+          <dd>{displayedLesson.promisedNext}</dd>
         </div>
       )}
     </>
@@ -345,14 +390,7 @@ export default function DashboardPage() {
                 </Link>
               </div>
             </div>
-            <dl className="mt-4 space-y-2 text-sm">
-              {effectiveNextLesson.plannedTopics && (
-                <div>
-                  <dt className="text-muted-foreground">מתוכנן לשיעור:</dt>
-                  <dd>{effectiveNextLesson.plannedTopics}</dd>
-                </div>
-              )}
-            </dl>
+            <dl className="mt-4 space-y-2 text-sm">{currentDetails}</dl>
             {hasPrevDetails && (
               <div className="mt-4 border-t border-border pt-3">
                 <p className="text-xs font-medium text-muted-foreground">
@@ -391,6 +429,7 @@ export default function DashboardPage() {
                 <dt className="text-muted-foreground">מתוך יומן Google:</dt>
                 <dd>{nextLinkedEvent.summary}</dd>
               </div>
+              {currentDetails}
             </dl>
             {hasPrevDetails && (
               <div className="mt-4 border-t border-border pt-3">

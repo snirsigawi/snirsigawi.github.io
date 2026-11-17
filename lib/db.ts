@@ -468,6 +468,26 @@ export async function getLesson(
   return data ? mapLesson(data) : null;
 }
 
+/** Saved lesson matching a calendar event for the same student and start time. */
+export async function getLessonAt(
+  studentId: string,
+  startsAt: string,
+): Promise<Lesson | null> {
+  const startMs = Date.parse(startsAt);
+  if (!Number.isFinite(startMs)) return null;
+  const { data, error } = await supabase
+    .from("lessons")
+    .select("*")
+    .eq("student_id", studentId)
+    .gte("starts_at", new Date(startMs - 60_000).toISOString())
+    .lte("starts_at", new Date(startMs + 60_000).toISOString())
+    .order("starts_at", { ascending: true })
+    .limit(1);
+  if (error) throw new Error(error.message);
+  const row = (data ?? [])[0];
+  return row ? mapLesson(row) : null;
+}
+
 export async function getLastLesson(studentId: string): Promise<Lesson | null> {
   const { data, error } = await supabase
     .from("lessons")
@@ -680,12 +700,15 @@ export async function getNextLesson(): Promise<NextLesson | null> {
   return { ...mapLesson(row), student: { id: student.id, name: student.name } };
 }
 
-export async function getPreviousLesson(studentId: string): Promise<Lesson | null> {
+export async function getPreviousLesson(
+  studentId: string,
+  beforeIso?: string,
+): Promise<Lesson | null> {
   const { data, error } = await supabase
     .from("lessons")
     .select("*")
     .eq("student_id", studentId)
-    .lte("starts_at", new Date().toISOString())
+    .lt("starts_at", beforeIso ?? new Date().toISOString())
     .order("starts_at", { ascending: false })
     .limit(20);
   if (error) throw new Error(error.message);
