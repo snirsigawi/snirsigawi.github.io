@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { createLesson, updateLesson, carryLessonContentForward } from "@/lib/db";
+import { createLesson, updateLesson, deleteLesson, carryLessonContentForward } from "@/lib/db";
 import { parseLessonForm, validateLesson } from "@/lib/lessons-form";
 
 export type LessonInitial = {
@@ -40,6 +40,7 @@ export function LessonForm({
   const [cancelled, setCancelled] = useState(initial.cancelled);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const startsAt = initial.startsAt ?? { date: "", time: "" };
   const endsAt = initial.endsAt ?? { date: "", time: "" };
@@ -80,6 +81,25 @@ export function LessonForm({
     } catch (err) {
       setError(err instanceof Error ? err.message : "שמירה נכשלה");
       setPending(false);
+    }
+  }
+
+  async function handleDelete() {
+    if (!lessonId) return;
+    if (!window.confirm("בטוח שבא לך למחוק את השיעור?")) return;
+    setError(null);
+    setDeleting(true);
+    try {
+      await deleteLesson(lessonId);
+      if (onDone) {
+        onDone();
+        window.location.reload();
+      } else {
+        window.location.assign(`/lessons/?id=${initial.studentId}`);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "מחיקה נכשלה");
+      setDeleting(false);
     }
   }
 
@@ -274,6 +294,16 @@ export function LessonForm({
       </div>
 
       <div className="flex items-center justify-end gap-2 border-t border-border pt-4">
+        {lessonId && (
+          <button
+            type="button"
+            onClick={handleDelete}
+            disabled={pending || deleting}
+            className="me-auto rounded-lg border border-red-300 px-4 py-2 text-sm text-red-700 transition-colors hover:bg-red-50 disabled:opacity-50 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-950/40"
+          >
+            {deleting ? "מוחק…" : "מחיקה"}
+          </button>
+        )}
         <button
           type="button"
           onClick={() => (onDone ? onDone() : router.back())}
