@@ -24,11 +24,33 @@ export default function StudentsPage() {
   }, []);
 
   useEffect(() => {
-    const archived =
+    const read = () =>
       new URLSearchParams(window.location.search).get("tab") === "archived";
+    const archived = read();
     setShowArchived(archived);
     void load(archived);
+
+    // Keep the view in sync with browser back/forward navigation.
+    const onPop = () => {
+      const next = read();
+      setShowArchived(next);
+      void load(next);
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
   }, [load]);
+
+  function selectTab(archived: boolean) {
+    if (archived === showArchived) return;
+    setShowArchived(archived);
+    setStudents([]);
+    void load(archived);
+    window.history.replaceState(
+      null,
+      "",
+      archived ? "/students/?tab=archived" : "/students/",
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -48,8 +70,9 @@ export default function StudentsPage() {
       </div>
 
       <div className="flex gap-1 border-b border-border">
-        <Link
-          href="/students/"
+        <button
+          type="button"
+          onClick={() => selectTab(false)}
           className={`-mb-px border-b-2 px-4 py-2 text-sm font-medium transition-colors ${
             !showArchived
               ? "border-brand text-foreground"
@@ -57,9 +80,10 @@ export default function StudentsPage() {
           }`}
         >
           פעילים ({activeCount})
-        </Link>
-        <Link
-          href="/students/?tab=archived"
+        </button>
+        <button
+          type="button"
+          onClick={() => selectTab(true)}
           className={`-mb-px border-b-2 px-4 py-2 text-sm font-medium transition-colors ${
             showArchived
               ? "border-brand text-foreground"
@@ -67,7 +91,7 @@ export default function StudentsPage() {
           }`}
         >
           ארכיון ({archivedCount})
-        </Link>
+        </button>
       </div>
 
       {students.length === 0 ? (
