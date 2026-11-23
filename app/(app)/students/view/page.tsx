@@ -131,7 +131,14 @@ export default function ViewStudentPage() {
         </Link>
         <div className="mt-2 flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h1 className="font-heading text-2xl font-bold">{student.name}</h1>
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="font-heading text-2xl font-bold">{student.name}</h1>
+              {isArchived && (
+                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-950 dark:text-amber-200">
+                  בארכיון
+                </span>
+              )}
+            </div>
             <p className="mt-1 text-sm text-muted-foreground">
               {student.city}
               {student.country ? `, ${student.country}` : ""}
@@ -150,17 +157,12 @@ export default function ViewStudentPage() {
             <StudentActions id={id} status={student.status} />
           </div>
         </div>
-        {isArchived && (
-          <span className="mt-3 inline-block rounded-full bg-amber-100 px-3 py-1 text-xs text-amber-800 dark:bg-amber-950 dark:text-amber-200">
-            תלמיד בארכיון
-          </span>
-        )}
         <span
           className={`mt-3 inline-block rounded-full px-3 py-1 text-xs ${
             student.requiresFollowup
               ? "bg-brand/10 text-brand"
               : "bg-muted text-muted-foreground"
-          } ${isArchived ? "ms-2" : ""}`}
+          }`}
         >
           {student.requiresFollowup ? "מעקב פעיל" : "אין צורך במעקב"}
         </span>

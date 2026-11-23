@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { setStudentStatus, deleteStudent } from "@/lib/db";
 
 export function StudentActions({
@@ -11,15 +10,15 @@ export function StudentActions({
   id: string;
   status: string;
 }) {
-  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const isArchived = status === "archived";
 
   function run(fn: () => Promise<void>, thenList = false) {
     startTransition(async () => {
       await fn();
-      if (thenList) router.push("/students/");
-      router.refresh();
+      // Student data is loaded client-side, so refresh the page to re-read it.
+      if (thenList) window.location.assign("/students/");
+      else window.location.reload();
     });
   }
 

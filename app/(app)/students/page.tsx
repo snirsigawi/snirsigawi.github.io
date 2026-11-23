@@ -88,7 +88,14 @@ export default function StudentsPage() {
               >
                 <div className="flex items-start justify-between gap-2">
                   <div>
-                    <h3 className="font-heading text-lg font-semibold">{s.name}</h3>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="font-heading text-lg font-semibold">{s.name}</h3>
+                      {s.status === "archived" && (
+                        <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-950 dark:text-amber-200">
+                          בארכיון
+                        </span>
+                      )}
+                    </div>
                     <p className="text-sm text-muted-foreground">
                       {s.city}
                       {s.country ? `, ${s.country}` : ""}
