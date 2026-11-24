@@ -46,7 +46,7 @@ export type LinkToastState =
 export const LINK_TOAST_MS = 8000;
 
 /** Linked lessons with one title that trigger auto-linking the rest. */
-const AUTO_LINK_MIN = 3;
+const AUTO_LINK_MIN = 2;
 
 /**
  * Once a student has AUTO_LINK_MIN linked events sharing one title, every
@@ -174,7 +174,7 @@ export function useCalendarLinking() {
         }
       }
 
-      // 3+ linked lessons with one title → the rest of that title is theirs.
+      // 2+ linked lessons with one title → the rest of that title is theirs.
       toInsert.push(...summaryAutoLinks(events, next, exclusionsRef.current));
 
       if (toInsert.length === 0) return current;
@@ -197,7 +197,7 @@ export function useCalendarLinking() {
       const next = new Map(linksRef.current).set(event.id, studentId);
       setLinks(next);
 
-      // 3rd lesson with this title for the student → auto-link the rest.
+      // 2nd lesson with this title for the student → auto-link the rest.
       const extra = summaryAutoLinks(eventsRef.current, next, exclusionsRef.current);
       if (extra.length > 0) {
         bulkLinkCalendarEvents(extra).catch(() => {});
