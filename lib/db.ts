@@ -654,6 +654,122 @@ export async function carryLessonContentForward(
   if (res.error) throw new Error(res.error.message);
 }
 
+/**
+ * Applies a cancelled lesson's content to a lesson that has just been linked to
+ * the same student from the calendar. At cancellation time there may have been
+ * no next lesson (and no linked event), so the content stays on the cancelled
+ * row only; the moment the student is connected to the next lesson, it is
+ * written there — creating the row at that start when it does not exist yet.
+ */
+export async function applyCancelledCarryOnLink(
+  studentId: string,
+  startsAtIso: string,
+): Promise<void> {
+  const anchorMs = Date.parse(startsAtIso);
+  if (!Number.isFinite(anchorMs)) return;
+
+  // The student's lesson immediately before the linked one.
+  const { data: priorRows, error: priorError } = await supabase
+    .from("lessons")
+    .select("*")
+    .eq("student_id", studentId)
+    .lt("starts_at", startsAtIso)
+    .order("starts_at", { ascending: false })
+    .limit(1);
+  if (priorError) return;
+
+  const priorRow = (priorRows ?? [])[0];
+  if (!priorRow || !priorRow.cancelled) return;
+
+  // A lesson in between already consumed the carry — don't copy twice.
+  const { data: between, error: betweenError } = await supabase
+    .from("lessons")
+    .select("id")
+    .eq("student_id", studentId)
+    .gt("starts_at", priorRow.starts_at as string)
+    .lt("starts_at", startsAtIso)
+    .limit(1);
+  if (betweenError) return;
+  if ((between ?? []).length > 0) return;
+
+  const content: Record<string, unknown> = {
+    planned_topics: priorRow.planned_topics ?? null,
+    covered_topics: priorRow.covered_topics ?? null,
+    used_presentation: Boolean(priorRow.used_presentation),
+    last_slide_no: priorRow.used_presentation
+      ? (priorRow.last_slide_no ?? null)
+      : null,
+    homework_assigned: priorRow.homework_assigned ?? null,
+    promised_next: priorRow.promised_next ?? null,
+    homework_checked: Boolean(priorRow.homework_checked),
+    notes: priorRow.notes ?? null,
+  };
+  const hasContent = Object.values(content).some(
+    (value) => value !== null && value !== "" && value !== false,
+  );
+  if (!hasContent) return;
+
+  // An existing row anchored at this calendar lesson is filled, never replaced.
+  const { data: near, error: nearError } = await supabase
+    .from("lessons")
+    .select("*")
+    .eq("student_id", studentId)
+    .gte("starts_at", new Date(anchorMs - 60_000).toISOString())
+    .lte("starts_at", new Date(anchorMs + 60_000).toISOString())
+    .limit(1);
+  if (nearError) return;
+
+  const existing = (near ?? [])[0];
+  if (existing) {
+    if (existing.cancelled) return;
+    const patch: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(content)) {
+      if (value === null || value === "" || value === false) continue;
+      const current = existing[key];
+      if (current === null || current === undefined || current === "" || current === false) {
+        patch[key] = value;
+      }
+    }
+    if (Object.keys(patch).length === 0) return;
+    const res = await supabase
+      .from("lessons")
+      .update(patch)
+      .eq("id", existing.id as string);
+    if (res.error) throw new Error(res.error.message);
+    return;
+  }
+
+  const res = await supabase.from("lessons").insert({
+    student_id: studentId,
+    starts_at: startsAtIso,
+    ...content,
+  });
+  if (res.error) throw new Error(res.error.message);
+}
+
+/**
+ * Bulk variant of {@link applyCancelledCarryOnLink} for newly linked events.
+ * Only the earliest lesson per student is a carry target.
+ */
+export async function applyCancelledCarries(
+  items: { studentId: string; startsAt: string | null }[],
+): Promise<void> {
+  const earliest = new Map<string, string>();
+  for (const item of items) {
+    if (!item.startsAt) continue;
+    const current = earliest.get(item.studentId);
+    if (!current || Date.parse(item.startsAt) < Date.parse(current)) {
+      earliest.set(item.studentId, item.startsAt);
+    }
+  }
+
+  await Promise.all(
+    [...earliest.entries()].map(([studentId, startsAt]) =>
+      applyCancelledCarryOnLink(studentId, startsAt).catch(() => {}),
+    ),
+  );
+}
+
 /** Start times of every lesson marked cancelled (used to skip/dim them in the calendar). */
 export async function listCancelledLessonStarts(): Promise<string[]> {
   const { data, error } = await supabase

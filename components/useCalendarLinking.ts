@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  applyCancelledCarries,
   bulkLinkCalendarEvents,
   bulkUnlinkCalendarEvents,
   excludeCalendarEvents,
@@ -182,6 +183,14 @@ export function useCalendarLinking() {
       try {
         await bulkLinkCalendarEvents(toInsert);
         setLinks(next);
+        // Cancelled content waits on its own row until the next lesson is linked.
+        await applyCancelledCarries(
+          toInsert.map((entry) => ({
+            studentId: entry.studentId,
+            startsAt:
+              events.find((e) => e.id === entry.googleEventId)?.start ?? null,
+          })),
+        ).catch(() => {});
         return next;
       } catch {
         return current;
@@ -202,6 +211,21 @@ export function useCalendarLinking() {
       if (extra.length > 0) {
         bulkLinkCalendarEvents(extra).catch(() => {});
         setLinks(new Map(next));
+      }
+
+      // A cancelled previous lesson's content follows the student into the
+      // newly linked lesson (the content waits on the cancelled row until now).
+      await applyCancelledCarries([
+        { studentId, startsAt: event.start },
+        ...extra.map((x) => ({
+          studentId: x.studentId,
+          startsAt:
+            eventsRef.current.find((e) => e.id === x.googleEventId)?.start ??
+            null,
+        })),
+      ]).catch(() => {});
+
+      if (extra.length > 0) {
         showToast({
           kind: "predicted",
           studentId,
@@ -276,6 +300,14 @@ export function useCalendarLinking() {
         linkSeries(seriesId, studentId),
         bulkLinkCalendarEvents(entries),
       ]);
+
+      // Cancelled content follows the student into the next linked lesson.
+      await applyCancelledCarries(
+        instances.map((instance) => ({
+          studentId,
+          startsAt: instance.start,
+        })),
+      ).catch(() => {});
 
       setSeriesLinks((prev) => new Map(prev).set(seriesId, studentId));
       setLinks((prev) => {

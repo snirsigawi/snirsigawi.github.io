@@ -65,6 +65,21 @@ export function LessonEditOverlay({
                     new Date(a.startsAt).getTime(),
                 )[0] ?? null);
 
+        // When the immediately preceding lesson was cancelled, its content is
+        // carried into this one (the cancellation stays "saved" until the
+        // student is connected to a next lesson).
+        const predecessor =
+          startMs === null
+            ? null
+            : (rows
+                .filter((l) => new Date(l.startsAt).getTime() < startMs - 60_000)
+                .sort(
+                  (a, b) =>
+                    new Date(b.startsAt).getTime() -
+                    new Date(a.startsAt).getTime(),
+                )[0] ?? null);
+        const carry = predecessor?.cancelled ? predecessor : null;
+
         if (match) {
           setState({
             status: "ready",
@@ -99,14 +114,14 @@ export function LessonEditOverlay({
                 ? splitDateTime(new Date(event.start))
                 : { date: "", time: "" },
               endsAt: event.end ? splitDateTime(new Date(event.end)) : null,
-              plannedTopics: null,
-              coveredTopics: null,
-              usedPresentation: false,
-              lastSlideNo: null,
-              homeworkAssigned: null,
-              promisedNext: null,
-              homeworkChecked: false,
-              notes: null,
+              plannedTopics: carry?.plannedTopics ?? null,
+              coveredTopics: carry?.coveredTopics ?? null,
+              usedPresentation: carry?.usedPresentation ?? false,
+              lastSlideNo: carry?.lastSlideNo ?? null,
+              homeworkAssigned: carry?.homeworkAssigned ?? null,
+              promisedNext: carry?.promisedNext ?? null,
+              homeworkChecked: carry?.homeworkChecked ?? false,
+              notes: carry?.notes ?? null,
               cancelled: false,
             },
           });
